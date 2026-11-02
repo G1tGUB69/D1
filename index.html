@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beat the Target</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --text: #1d2330;
+      --muted: #6b7280;
+      --accent: #3b5bdb;
+      --die: #ffffff;
+      --pip: #1d2330;
+      --border: #e2e5ea;
+      --table: #eceef2;
+      --win: #2b8a3e;
+      --lose: #e03131;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14161b;
+        --card: #1d2027;
+        --text: #e8eaef;
+        --muted: #9aa0ab;
+        --accent: #6c8cff;
+        --die: #f3f4f6;
+        --pip: #1d2330;
+        --border: #2c3039;
+        --table: #262a33;
+        --win: #51cf66;
+        --lose: #ff6b6b;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 460px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .rules {
+      margin: 0 0 16px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .stats div {
+      padding: 8px 4px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .label {
+      display: block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+
+    .stats .value {
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .table {
+      position: relative;
+      width: 100%;
+      height: 240px;
+      margin-bottom: 16px;
+      background: var(--table);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .table canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    .total {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .breakdown {
+      color: var(--muted);
+      font-size: 0.95rem;
+      min-height: 2.8em;
+      margin-bottom: 16px;
+    }
+
+    .options {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding: 12px;
+      text-align: left;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: opacity 0.2s;
+    }
+
+    .options.locked { opacity: 0.55; }
+
+    .option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.95rem;
+    }
+
+    .option small {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .chips, .stepper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chips {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .stepper span {
+      min-width: 1.5em;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .toggle input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .summary {
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: filter 0.15s, transform 0.05s;
+    }
+
+    button:hover { filter: brightness(1.08); }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.6; cursor: default; }
+
+    button.secondary,
+    .options button {
+      color: var(--accent);
+      background: transparent;
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+
+    .options button {
+      width: auto;
+      padding: 6px 12px;
+      font-size: 0.9rem;
+      border-radius: 8px;
+    }
+
+    .options button.active {
+      color: #fff;
+      background: var(--accent);
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .history {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      min-height: 2.5em;
+    }
+
+    .history span {
+      padding: 4px 10px;
+      font-size: 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+
+    .debug {
+      margin-top: 16px;
+      text-align: left;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .debug summary { cursor: pointer; }
+
+    .debug-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .debug input {
+      width: 64px;
+      padding: 4px 6px;
+      font: inherit;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .debug button {
+      width: auto;
+      margin-top: 10px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+    }
+
+    .history span.win { color: var(--win); border-color: var(--win); }
+    .history span.lose { color: var(--lose); border-color: var(--lose); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Beat the Target</h1>
+    <p class="rules">Bet, pick your dice, then roll two of them. Reach the target or higher to win. Spend money on rerolls and exploding dice, or add penalty dice for a bigger payout.</p>
+
+    <div class="stats">
+      <div><span class="label">Money</span><span class="value" id="money">$100</span></div>
+      <div><span class="label">Target</span><span class="value" id="target">–</span></div>
+      <div><span class="label">Rerolls</span><span class="value" id="rerolls">3</span></div>
+      <div><span class="label">Best</span><span class="value" id="best">$100</span></div>
+    </div>
+
+    <div class="table" id="table"></div>
+
+    <div class="label">Total</div>
+    <div class="total" id="total">–</div>
+    <div class="breakdown" id="breakdown"></div>
+
+    <section class="options" id="options">
+      <div class="option">
+        <span>Bet</span>
+        <div class="chips" id="bets"></div>
+      </div>
+      <div class="option">
+        <span>Dice <small>Bigger dice win more often, cost more and pay less</small></span>
+        <div class="chips" id="diceTypes"></div>
+      </div>
+      <div class="option">
+        <span>Penalty dice <small>Red dice subtract from the total, raising the payout</small></span>
+        <div class="stepper">
+          <button id="penMinus">−</button>
+          <span id="penCount">0</span>
+          <button id="penPlus">+</button>
+        </div>
+      </div>
+      <div class="option">
+        <span>Exploding dice <small>Each max roll adds a bonus die</small></span>
+        <label class="toggle"><input type="checkbox" id="explode"><span id="explodeCost">+$5</span></label>
+      </div>
+      <div class="summary" id="summary"></div>
+    </section>
+
+    <div class="buttons">
+      <button id="primary">Roll</button>
+      <button id="secondary" class="secondary" hidden>Take the loss</button>
+    </div>
+    <div class="hint" id="hint"></div>
+
+    <div class="history" id="history"></div>
+
+    <details class="debug">
+      <summary>Debug</summary>
+      <div id="debugFees"></div>
+      <label class="debug-row">
+        <span>Penalty payout raise</span>
+        <span><input type="number" id="penaltyScale" min="0" step="10"> % <span class="debug-amount" id="penaltyAmount"></span></span>
+      </label>
+      <button id="debugReset" class="secondary">Reset debug settings</button>
+    </details>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+        "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+    import * as CANNON from 'cannon-es';
+
+    // --- Game settings ---
+
+    const START_MONEY = 100;
+    const BETS = [5, 10, 25, 50];
+    const TARGET_MIN = 5;
+    const TARGET_MAX = 11;
+    const MAX_PENALTY = 2;
+    const MAX_REROLLS = 3;
+    const MAX_DICE = 8;
+    const HOUSE_RETURN = 0.95;   // payouts return 95% of fair odds
+    const MAX_MULTIPLIER = 50;
+    const EXPLODE_PRICE = 0.5;   // fraction of the bet
+    const REROLL_PRICE = 0.25;   // fraction of the bet, doubling with each reroll
+
+    // Which of the 9 grid cells (0–8) show a pip for each face
+    const FACES = {
+      1: [4],
+      2: [0, 8],
+      3: [0, 4, 8],
+      4: [0, 2, 6, 8],
+      5: [0, 2, 4, 6, 8],
+      6: [0, 2, 3, 5, 6, 8]
+    };
+
+    // Face value on each local axis, in BoxGeometry material order (+x, -x, +y, -y, +z, -z).
+    // Opposite faces sum to 7, like a real die.
+    const AXES = [
+      { dir: new THREE.Vector3( 1, 0, 0), value: 1 },
+      { dir: new THREE.Vector3(-1, 0, 0), value: 6 },
+      { dir: new THREE.Vector3( 0, 1, 0), value: 2 },
+      { dir: new THREE.Vector3( 0,-1, 0), value: 5 },
+      { dir: new THREE.Vector3( 0, 0, 1), value: 3 },
+      { dir: new THREE.Vector3( 0, 0,-1), value: 4 }
+    ];
+
+    // Arena half-extents (world units, die size = 1)
+    const ARENA_W = 3;
+    const ARENA_D = 2;
+
+    const $ = id => document.getElementById(id);
+    const tableEl = $('table');
+    const moneyEl = $('money');
+    const targetEl = $('target');
+    const rerollsEl = $('rerolls');
+    const bestEl = $('best');
+    const totalEl = $('total');
+    const breakdownEl = $('breakdown');
+    const optionsEl = $('options');
+    const betsEl = $('bets');
+    const diceTypesEl = $('diceTypes');
+    const penMinusBtn = $('penMinus');
+    const penPlusBtn = $('penPlus');
+    const penCountEl = $('penCount');
+    const explodeInput = $('explode');
+    const explodeCostEl = $('explodeCost');
+    const summaryEl = $('summary');
+    const primaryBtn = $('primary');
+    const secondaryBtn = $('secondary');
+    const hintEl = $('hint');
+    const historyEl = $('history');
+    const history = [];
+
+    const css = getComputedStyle(document.documentElement);
+    const DIE_STYLES = {
+      normal:  { bg: css.getPropertyValue('--die').trim(), pip: css.getPropertyValue('--pip').trim() },
+      penalty: { bg: '#c92a2a', pip: '#ffffff' },
+      bonus:   { bg: '#f2c94c', pip: '#1d2330' }
+    };
+
+    // --- Rendering ---
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    tableEl.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+    camera.position.set(0, 10, 5.5);
+    camera.lookAt(0, 0, 0.3);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8890a0, 1.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+    sun.position.set(3, 10, 4);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5 });
+    scene.add(sun);
+
+    // Invisible floor that only shows shadows, so the CSS table colour shows through
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 20),
+      new THREE.ShadowMaterial({ opacity: 0.22 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    function faceTexture(value, style) {
+      const size = 256;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = style.bg;
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = style.pip;
+      const cell = size / 3.6;
+      const offset = (size - cell * 3) / 2;
+      FACES[value].forEach(i => {
+        const x = offset + (i % 3 + 0.5) * cell;
+        const y = offset + (Math.floor(i / 3) + 0.5) * cell;
+        ctx.beginPath();
+        ctx.arc(x, y, size * 0.075, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    }
+
+    // --- Dice types ---
+
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+    // Every vertex triple whose three sides are the shortest edge: the faces of a regular solid
+    function triangleFaces(verts) {
+      let edge = Infinity;
+      verts.forEach((a, i) => verts.forEach((b, j) => { if (i < j) edge = Math.min(edge, a.distanceTo(b)); }));
+      const isEdge = (a, b) => Math.abs(verts[a].distanceTo(verts[b]) - edge) < 1e-4;
+      const faces = [];
+      for (let i = 0; i < verts.length; i++)
+        for (let j = i + 1; j < verts.length; j++)
+          for (let k = j + 1; k < verts.length; k++)
+            if (isEdge(i, j) && isEdge(j, k) && isEdge(i, k)) faces.push([i, j, k]);
+      return { verts, faces };
+    }
+
+    // Pentagonal trapezohedron: two apexes and two offset rings of five, joined by kite faces
+    function d10Solid() {
+      const ring = 0.105;
+      const cos36 = Math.cos(Math.PI / 5);
+      const apex = ring * (1 + cos36) / (1 - cos36);   // keeps each kite flat
+      const verts = [v3(0, apex, 0), v3(0, -apex, 0)];
+      for (let k = 0; k < 5; k++) {
+        const a = k * 2 * Math.PI / 5;
+        verts.push(v3(Math.cos(a), ring, Math.sin(a)));                                    // upper ring: 2 + 2k
+        verts.push(v3(Math.cos(a + Math.PI / 5), -ring, Math.sin(a + Math.PI / 5)));       // lower ring: 3 + 2k
+      }
+      const faces = [];
+      for (let k = 0; k < 5; k++) {
+        const u = 2 + 2 * k, l = 3 + 2 * k;
+        const uNext = 2 + 2 * ((k + 1) % 5), lNext = 3 + 2 * ((k + 1) % 5);
+        faces.push([0, u, l, uNext]);
+        faces.push([1, l, uNext, lNext]);
+      }
+      return { verts, faces };
+    }
+
+    // Scale to the given radius and wind every face counter-clockwise seen from outside
+    function finishSolid({ verts, faces }, radius) {
+      const scale = radius / Math.max(...verts.map(v => v.length()));
+      verts.forEach(v => v.multiplyScalar(scale));
+      faces.forEach(f => {
+        const [a, b, c] = f.map(i => verts[i]);
+        const normal = v3().subVectors(b, a).cross(v3().subVectors(c, a));
+        const centre = f.reduce((s, i) => s.add(verts[i]), v3());
+        if (normal.dot(centre) < 0) f.reverse();
+      });
+      return { verts, faces };
+    }
+
+    function polyFaceTexture(face, style, corners, font) {
+      const size = 256;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const toCanvas = uv => [uv.x * size, (1 - uv.y) * size];
+
+      ctx.fillStyle = style.bg;
+      ctx.fillRect(0, 0, size, size);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      face.uvs.forEach(uv => ctx.lineTo(...toCanvas(uv)));
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.fillStyle = style.pip;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = (text, x, y, angle, px) => {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.font = `bold ${px}px system-ui, sans-serif`;
+        ctx.fillText(text, 0, 0);
+        if (text === '6' || text === '9') ctx.fillRect(-px * 0.25, px * 0.42, px * 0.5, px * 0.08);
+        ctx.restore();
+      };
+
+      const c = size / 2;
+      if (corners) {
+        // d4: each corner shows its own number, upright toward that corner
+        face.indices.forEach((vi, j) => {
+          const [x, y] = toCanvas(face.uvs[j]);
+          label(String(vi + 1), c + (x - c) * 0.55, c + (y - c) * 0.55, Math.atan2(x - c, c - y), size * 0.17);
+        });
+      } else {
+        label(String(face.value), c, c, 0, size * font);
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    }
+
+    function polyDie(sides, { verts, faces }, { fee, font = 0.3, corners = false }) {
+      const info = faces.map(indices => {
+        const pts = indices.map(i => verts[i]);
+        const centre = pts.reduce((s, p) => s.add(p), v3()).divideScalar(pts.length);
+        const normal = v3().subVectors(pts[1], pts[0]).cross(v3().subVectors(pts[2], pts[0])).normalize();
+        const up = pts[0].clone().sub(centre).normalize();
+        const right = up.clone().cross(normal);
+        const radius = Math.max(...pts.map(p => p.distanceTo(centre)));
+        const uvs = pts.map(p => {
+          const d = p.clone().sub(centre);
+          return new THREE.Vector2(0.5 + d.dot(right) / radius * 0.47, 0.5 + d.dot(up) / radius * 0.47);
+        });
+        return { indices, pts, normal, uvs, value: 0 };
+      });
+
+      // Opposite faces add up to sides + 1, like real dice
+      if (!corners) {
+        let next = 1;
+        info.forEach(face => {
+          if (face.value) return;
+          face.value = next;
+          const opposite = info.find(o => !o.value && o.normal.dot(face.normal) < -0.999);
+          if (opposite) opposite.value = sides + 1 - next;
+          next++;
+        });
+      }
+
+      // One material group per face so each face gets its own number texture
+      const positions = [], normals = [], uvs = [];
+      const geometry = new THREE.BufferGeometry();
+      info.forEach((face, index) => {
+        const start = positions.length / 3;
+        for (let t = 1; t < face.pts.length - 1; t++) {
+          [0, t, t + 1].forEach(j => {
+            positions.push(face.pts[j].x, face.pts[j].y, face.pts[j].z);
+            normals.push(face.normal.x, face.normal.y, face.normal.z);
+            uvs.push(face.uvs[j].x, face.uvs[j].y);
+          });
+        }
+        geometry.addGroup(start, positions.length / 3 - start, index);
+      });
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+
+      return {
+        sides,
+        fee,
+        geometry,
+        faces: info.map(f => ({ normal: f.normal, value: f.value })),
+        corners: corners ? verts.map((v, i) => ({ dir: v.clone().normalize(), value: i + 1 })) : null,
+        makeShape: () => new CANNON.ConvexPolyhedron({
+          vertices: verts.map(v => new CANNON.Vec3(v.x, v.y, v.z)),
+          faces: faces.map(f => [...f])
+        }),
+        makeTextures: style => info.map(f => polyFaceTexture(f, style, corners, font))
+      };
+    }
+
+    const tetra = [v3(1, 1, 1), v3(1, -1, -1), v3(-1, 1, -1), v3(-1, -1, 1)];
+    const octa = [v3(1, 0, 0), v3(-1, 0, 0), v3(0, 1, 0), v3(0, -1, 0), v3(0, 0, 1), v3(0, 0, -1)];
+    const icosa = [];
+    [-1, 1].forEach(a => [-1, 1].forEach(b => icosa.push(v3(0, a, b * PHI), v3(a, b * PHI, 0), v3(b * PHI, 0, a))));
+
+    // fee: extra cost as a fraction of the bet — the bigger the die, the higher the price
+    const DIE_TYPES = {
+      d4: polyDie(4, finishSolid(triangleFaces(tetra), 1), { fee: 0, corners: true }),
+      d6: {
+        sides: 6,
+        fee: 0.1,
+        geometry: new RoundedBoxGeometry(1, 1, 1, 4, 0.12),
+        faces: AXES.map(a => ({ normal: a.dir, value: a.value })),
+        corners: null,
+        makeShape: () => new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)),
+        makeTextures: style => AXES.map(a => faceTexture(a.value, style))
+      },
+      d8: polyDie(8, finishSolid(triangleFaces(octa), 0.8), { fee: 0.2, font: 0.3 }),
+      d10: polyDie(10, finishSolid(d10Solid(), 0.8), { fee: 0.3, font: 0.26 }),
+      d20: polyDie(20, finishSolid(triangleFaces(icosa), 0.8), { fee: 0.5, font: 0.28 })
+    };
+
+    const materialCache = {};
+    function materialsFor(typeKey, kind) {
+      const key = `${typeKey}-${kind}`;
+      if (!materialCache[key]) {
+        materialCache[key] = DIE_TYPES[typeKey].makeTextures(DIE_STYLES[kind]).map(map =>
+          new THREE.MeshStandardMaterial({ map, roughness: 0.45 })
+        );
+      }
+      return materialCache[key];
+    }
+
+    // --- Physics ---
+
+    const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -30, 0) });
+    world.allowSleep = true;
+
+    const floorMat = new CANNON.Material('floor');
+    const diceMat = new CANNON.Material('dice');
+    world.addContactMaterial(new CANNON.ContactMaterial(floorMat, diceMat, { friction: 0.3, restitution: 0.45 }));
+    world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.2, restitution: 0.4 }));
+
+    function addPlane(position, euler) {
+      const body = new CANNON.Body({ mass: 0, material: floorMat, shape: new CANNON.Plane() });
+      body.position.set(...position);
+      body.quaternion.setFromEuler(...euler);
+      world.addBody(body);
+    }
+
+    addPlane([0, 0, 0], [-Math.PI / 2, 0, 0]);          // floor
+    addPlane([-ARENA_W, 0, 0], [0, Math.PI / 2, 0]);    // left wall
+    addPlane([ARENA_W, 0, 0], [0, -Math.PI / 2, 0]);    // right wall
+    addPlane([0, 0, -ARENA_D], [0, 0, 0]);              // back wall
+    addPlane([0, 0, ARENA_D], [0, Math.PI, 0]);         // front wall
+
+    // --- Dice ---
+
+    // kind: 'normal' (white), 'penalty' (red, subtracts), 'bonus' (gold, from an exploding 6)
+    const dice = [];
+
+    function addDie(kind, x, y, z) {
+      const type = DIE_TYPES[game.dieType];
+      // Own copy of the materials so a die can be highlighted on its own
+      const mesh = new THREE.Mesh(type.geometry, materialsFor(game.dieType, kind).map(m => m.clone()));
+      mesh.castShadow = true;
+      scene.add(mesh);
+
+      const body = new CANNON.Body({
+        mass: 1,
+        material: diceMat,
+        shape: type.makeShape(),
+        sleepSpeedLimit: 0.15,
+        sleepTimeLimit: 0.3,
+        linearDamping: 0.1,
+        angularDamping: 0.1
+      });
+      body.position.set(x, y, z);
+      body.quaternion.setFromEuler(rand(0, 2 * Math.PI), rand(0, 2 * Math.PI), rand(0, 2 * Math.PI));
+      world.addBody(body);
+
+      const die = { kind, type, mesh, body, selected: false, exploded: false };
+      dice.push(die);
+      return die;
+    }
+
+    function removeDie(die) {
+      scene.remove(die.mesh);
+      die.mesh.material.forEach(m => m.dispose());
+      world.removeBody(die.body);
+      dice.splice(dice.indexOf(die), 1);
+    }
+
+    function setSelected(die, on) {
+      die.selected = on;
+      die.mesh.material.forEach(m => m.emissive.setHex(on ? 0x1c3db8 : 0x000000));
+    }
+
+    function syncMeshes() {
+      dice.forEach(({ mesh, body }) => {
+        mesh.position.copy(body.position);
+        mesh.quaternion.copy(body.quaternion);
+      });
+    }
+
+    // Value showing, and how squarely the die lies on a face (1 = flat)
+    function readDie(die) {
+      const q = new THREE.Quaternion().copy(die.body.quaternion);
+      const height = dir => dir.clone().applyQuaternion(q).y;
+      let value = 1, top = -Infinity, bottom = Infinity;
+      die.type.faces.forEach(f => {
+        const y = height(f.normal);
+        if (y > top) {
+          top = y;
+          value = f.value;
+        }
+        bottom = Math.min(bottom, y);
+      });
+
+      // A d4 counts the number at its top point instead
+      if (die.type.corners) {
+        top = -Infinity;
+        die.type.corners.forEach(c => {
+          const y = height(c.dir);
+          if (y > top) {
+            top = y;
+            value = c.value;
+          }
+        });
+      }
+      return { value, flat: -bottom };
+    }
+
+    // Two white dice plus any penalty dice, dropped in a row
+    function layoutDice() {
+      [...dice].forEach(removeDie);
+      const kinds = ['normal', 'normal', ...Array(game.penalty).fill('penalty')];
+      kinds.forEach((kind, i) => addDie(kind, (i - (kinds.length - 1) / 2) * 1.4, 1.2, 0));
+    }
+
+    // --- Throwing ---
+
+    const rand = (min, max) => min + Math.random() * (max - min);
+    const randInt = (min, max) => Math.floor(rand(min, max + 1));
+    const MAX_THROW = 25;
+    const GENTLE_SPEED = 4;    // release speed (units/s) below which a held die is just set down
+    let rollStart = 0;
+
+    // Leap up, drifting back toward the middle of the table, with a random spin
+    function tossDie(body) {
+      body.wakeUp();
+      body.velocity.set(
+        -body.position.x * 1.2 + rand(-2, 2),
+        rand(9, 12),
+        -body.position.z * 1.2 + rand(-1.5, 1.5)
+      );
+      const spin = () => rand(10, 20) * (Math.random() < 0.5 ? -1 : 1);
+      body.angularVelocity.set(spin(), spin(), spin());
+    }
+
+    // Momentum from the pointer, random spin that grows with how hard it was flicked
+    function flingDie({ die: { body }, velocity, speed }) {
+      velocity.multiplyScalar(Math.min(1, MAX_THROW / speed));
+      body.velocity.set(velocity.x, rand(3, 6), velocity.z);
+      const spin = Math.min(speed - GENTLE_SPEED, 20);
+      body.angularVelocity.set(rand(-spin, spin), rand(-spin, spin), rand(-spin, spin));
+    }
+
+    function throwDice(list, handThrow) {
+      list.forEach(d => {
+        if (handThrow && d === handThrow.die) flingDie(handThrow);
+        else tossDie(d.body);
+      });
+      game.phase = 'rolling';
+      rollStart = performance.now();
+      breakdownEl.textContent = 'Rolling…';
+      render();
+    }
+
+    function spawnBonusDie() {
+      const { body } = addDie('bonus', rand(-1.5, 1.5), 2.5, ARENA_D - 0.8);
+      body.velocity.set(rand(-2, 2), 3, -6);
+      body.angularVelocity.set(rand(-15, 15), rand(-15, 15), rand(-15, 15));
+    }
+
+    function checkSettled(now) {
+      if (now - rollStart < 500) return;
+      const timedOut = now - rollStart > 8000;
+      if (!timedOut && !dice.every(({ body }) => body.sleepState === CANNON.Body.SLEEPING)) return;
+
+      const tops = dice.map(d => readDie(d));
+
+      // A die resting on its edge against a wall or another die gets a nudge
+      const cocked = dice.filter((d, i) => tops[i].flat < 0.95);
+      if (cocked.length && !timedOut) {
+        cocked.forEach(({ body }) => {
+          body.wakeUp();
+          body.velocity.set(rand(-1, 1), 4, rand(-1, 1));
+          body.angularVelocity.set(rand(-5, 5), rand(-5, 5), rand(-5, 5));
+        });
+        return;
+      }
+
+      onSettled(dice.map((die, i) => ({ die, value: tops[i].value })));
+    }
+
+    // --- Game ---
+
+    const game = {
+      money: START_MONEY,
+      bet: 10,
+      dieType: 'd6',
+      penalty: 0,
+      exploding: false,
+      target: 0,
+      phase: 'bet',        // bet | rolling | decide | over
+      rerollsUsed: 0,
+      spent: 0,            // everything paid this round
+      payout: 0,           // locked in when the round's first roll is paid
+      rolledExploding: false,
+      result: null         // { total, sum } while deciding
+    };
+
+    let best = START_MONEY;
+    try { best = Number(localStorage.getItem('beat-the-target-best')) || START_MONEY; } catch {}
+
+    const dollars = n => `${n < 0 ? '−' : '+'}$${Math.abs(n)}`;
+    const sides = () => DIE_TYPES[game.dieType].sides;
+    // Fraction of the bet, rounded up to whole dollars (toFixed avoids 0.3 × 10 = 3.0000000000000004)
+    const priceOf = fraction => Math.ceil(Number((game.bet * fraction).toFixed(6)));
+    const diceFee = () => priceOf(DIE_TYPES[game.dieType].fee);
+    const explodeCost = () => Math.ceil(game.bet * EXPLODE_PRICE);
+    const upfrontCost = () => game.bet + diceFee() + (game.exploding ? explodeCost() : 0);
+    const rerollCost = () => Math.ceil(game.bet * REROLL_PRICE) * 2 ** game.rerollsUsed;
+    const canReroll = () => game.rerollsUsed < MAX_REROLLS && rerollCost() <= game.money;
+
+    // Chance that two dice minus the penalty dice reach the target (ignoring rerolls and explosions)
+    function winChance(target, sides, penalty) {
+      let dist = new Map([[0, 1]]);
+      const addRoll = sign => {
+        const next = new Map();
+        dist.forEach((p, sum) => {
+          for (let f = 1; f <= sides; f++) {
+            const key = sum + sign * f;
+            next.set(key, (next.get(key) || 0) + p / sides);
+          }
+        });
+        dist = next;
+      };
+      addRoll(1);
+      addRoll(1);
+      for (let i = 0; i < penalty; i++) addRoll(-1);
+
+      let chance = 0;
+      dist.forEach((p, sum) => { if (sum >= target) chance += p; });
+      return chance;
+    }
+
+    const baseChance = () => winChance(game.target, sides(), game.penalty);
+    // penaltyScale: how much of the odds-based payout raise from penalty dice is applied (1 = fair)
+    const tuning = { penaltyScale: 1 };
+    const multiplierFor = chance => Math.min(MAX_MULTIPLIER, HOUSE_RETURN / chance);
+
+    function payoutWith(penalty) {
+      const plain = multiplierFor(winChance(game.target, sides(), 0));
+      const withPenalty = multiplierFor(winChance(game.target, sides(), penalty));
+      return Math.floor(game.bet * Math.max(0, plain + (withPenalty - plain) * tuning.penaltyScale));
+    }
+    const payout = () => payoutWith(game.penalty);
+
+    function setDieType(key) {
+      game.dieType = key;
+      layoutDice();
+      render();
+    }
+
+    function describe(faces) {
+      return faces.map(({ die, value }, i) => {
+        if (die.kind === 'penalty') return i === 0 ? `−${value}` : ` − ${value}`;
+        return i === 0 ? `${value}` : ` + ${value}`;
+      }).join('');
+    }
+
+    function setPenalty(n) {
+      game.penalty = n;
+      const penaltyDice = () => dice.filter(d => d.kind === 'penalty');
+      while (penaltyDice().length < n) addDie('penalty', rand(-2, 2), 2, rand(-1, 1));
+      while (penaltyDice().length > n) removeDie(penaltyDice().pop());
+      render();
+    }
+
+    function roll(handThrow) {
+      if (game.phase !== 'bet' || drag || upfrontCost() > game.money) return false;
+
+      dice.filter(d => d.kind === 'bonus').forEach(removeDie);
+      dice.forEach(d => {
+        d.exploded = false;
+        setSelected(d, false);
+      });
+
+      game.spent = upfrontCost();
+      game.money -= game.spent;
+      game.payout = payout();
+      game.rolledExploding = game.exploding;
+      throwDice(dice, handThrow);
+      return true;
+    }
+
+    function reroll(list, handThrow) {
+      if (game.phase !== 'decide' || drag || !list.length || !canReroll()) return false;
+
+      const cost = rerollCost();
+      game.money -= cost;
+      game.spent += cost;
+      game.rerollsUsed++;
+      dice.forEach(d => setSelected(d, false));
+      throwDice(list, handThrow);
+      return true;
+    }
+
+    function onSettled(faces) {
+      // Exploding dice: each white or gold max roll brings in one bonus die (which can explode too)
+      if (game.rolledExploding) {
+        const maxed = faces.filter(f => f.value === sides() && f.die.kind !== 'penalty' && !f.die.exploded);
+        const room = MAX_DICE - dice.length;
+        if (maxed.length && room > 0) {
+          maxed.slice(0, room).forEach(f => {
+            f.die.exploded = true;
+            spawnBonusDie();
+          });
+          rollStart = performance.now();
+          breakdownEl.textContent = `Exploding ${sides()}! Bonus die incoming…`;
+          return;
+        }
+      }
+
+      const total = faces.reduce((t, { die, value }) => t + (die.kind === 'penalty' ? -value : value), 0);
+      const sum = describe(faces) + (faces.length > 1 ? ` = ${total}` : '');
+      totalEl.textContent = total;
+
+      if (total < game.target && canReroll()) {
+        game.phase = 'decide';
+        game.result = { total, sum };
+        breakdownEl.textContent = `${sum}, need ${game.target}. Pick dice to reroll, or take the loss.`;
+        render();
+        return;
+      }
+
+      resolve(total, sum);
+    }
+
+    function resolve(total, sum) {
+      const win = total >= game.target;
+      if (win) game.money += game.payout;
+      const net = (win ? game.payout : 0) - game.spent;
+
+      history.unshift({ text: `${total}/${game.target} ${dollars(net)}`, win });
+      if (history.length > 10) history.pop();
+      historyEl.innerHTML = history.map(h => `<span class="${h.win ? 'win' : 'lose'}">${h.text}</span>`).join('');
+
+      if (game.money > best) {
+        best = game.money;
+        try { localStorage.setItem('beat-the-target-best', best); } catch {}
+      }
+
+      newRound(`${sum} vs ${game.target}: ${win ? `won $${game.payout}` : 'lost'} (${dollars(net)}).`);
+    }
+
+    function newRound(message) {
+      game.target = randInt(TARGET_MIN, TARGET_MAX);
+      game.rerollsUsed = 0;
+      game.spent = 0;
+      game.result = null;
+      dice.forEach(d => setSelected(d, false));
+
+      if (game.money < BETS[0]) {
+        game.phase = 'over';
+        breakdownEl.textContent = `${message} You're out of money.`;
+      } else {
+        game.phase = 'bet';
+        if (game.bet > game.money) game.bet = [...BETS].reverse().find(b => b <= game.money);
+        if (upfrontCost() > game.money) game.exploding = false;
+        breakdownEl.textContent = `${message} New target: ${game.target}. Place your bet.`.trim();
+      }
+      render();
+    }
+
+    function newGame() {
+      game.money = START_MONEY;
+      history.length = 0;
+      historyEl.innerHTML = '';
+      totalEl.textContent = '–';
+      newRound('');
+    }
+
+    function render() {
+      const busy = game.phase === 'rolling' || !!drag;
+      const betting = game.phase === 'bet';
+      const locked = !betting || busy;
+
+      moneyEl.textContent = `$${game.money}`;
+      targetEl.textContent = game.target;
+      rerollsEl.textContent = MAX_REROLLS - game.rerollsUsed;
+      bestEl.textContent = `$${best}`;
+
+      optionsEl.classList.toggle('locked', !betting);
+      betsEl.querySelectorAll('button').forEach(b => {
+        const value = Number(b.dataset.bet);
+        b.classList.toggle('active', value === game.bet);
+        b.disabled = locked || value > game.money;
+      });
+      diceTypesEl.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('active', b.dataset.type === game.dieType);
+        b.disabled = locked;
+      });
+      penCountEl.textContent = game.penalty;
+      penMinusBtn.disabled = locked || game.penalty === 0;
+      penPlusBtn.disabled = locked || game.penalty === MAX_PENALTY;
+      explodeInput.checked = game.exploding;
+      explodeInput.disabled = locked || (!game.exploding && upfrontCost() + explodeCost() > game.money);
+      explodeCostEl.textContent = `+$${explodeCost()}`;
+
+      if (betting) {
+        const chance = baseChance();
+        const pct = chance > 0 && chance < 0.01 ? '<1' : Math.round(chance * 100);
+        const fee = diceFee() ? ` (incl. $${diceFee()} for ${game.dieType}s)` : '';
+        const reach = chance === 0 ? ' · only exploding dice can reach it' : '';
+        summaryEl.textContent = `Costs $${upfrontCost()}${fee} · ${pct}% base chance${reach} · Win pays $${payout()}`;
+      } else if (game.phase === 'over') {
+        summaryEl.textContent = 'Out of money';
+      } else {
+        summaryEl.textContent = `Spent $${game.spent} this round · Win pays $${game.payout}`;
+      }
+
+      renderDebug();
+
+      secondaryBtn.hidden = game.phase !== 'decide';
+      secondaryBtn.disabled = busy;
+
+      if (game.phase === 'over') {
+        primaryBtn.textContent = 'New game';
+        primaryBtn.disabled = false;
+        hintEl.textContent = `Your best so far: $${best}`;
+      } else if (betting) {
+        primaryBtn.textContent = `Roll · $${upfrontCost()}`;
+        primaryBtn.disabled = busy || upfrontCost() > game.money;
+        hintEl.textContent = 'Space to roll · or flick a die to throw it yourself';
+      } else if (game.phase === 'rolling') {
+        primaryBtn.textContent = 'Rolling…';
+        primaryBtn.disabled = true;
+      } else {
+        const selected = dice.filter(d => d.selected).length;
+        primaryBtn.textContent = `Reroll ${selected || ''} · $${rerollCost()}`.replace('  ', ' ');
+        primaryBtn.disabled = busy || !selected;
+        hintEl.textContent = 'Click dice to select them · or flick a single die to reroll it';
+      }
+    }
+
+    // --- Dragging ---
+
+    const LIFT = 1;            // height a held die floats at
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -LIFT);
+    const canvas = renderer.domElement;
+    let drag = null;
+
+    function aimAt(e) {
+      const rect = canvas.getBoundingClientRect();
+      pointer.set(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(pointer, camera);
+    }
+
+    function dieUnderPointer(e) {
+      aimAt(e);
+      const hit = raycaster.intersectObjects(dice.map(d => d.mesh))[0];
+      return hit ? dice.find(d => d.mesh === hit.object) : null;
+    }
+
+    // Where the pointer meets the lifted drag plane, kept inside the walls
+    function dragTarget(e) {
+      aimAt(e);
+      const p = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3());
+      if (!p) return null;
+      p.x = THREE.MathUtils.clamp(p.x, -ARENA_W + 0.6, ARENA_W - 0.6);
+      p.z = THREE.MathUtils.clamp(p.z, -ARENA_D + 0.6, ARENA_D - 0.6);
+      return p;
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      if (game.phase === 'rolling') return;
+      const die = dieUnderPointer(e);
+      const target = die && dragTarget(e);
+      if (!target) return;
+
+      canvas.setPointerCapture(e.pointerId);
+      canvas.style.cursor = 'grabbing';
+
+      // Kinematic while held: follows the pointer, keeps its orientation, still shoves other dice
+      const { body } = die;
+      body.type = CANNON.Body.KINEMATIC;
+      body.allowSleep = false;
+      body.wakeUp();
+      body.angularVelocity.setZero();
+      drag = {
+        die,
+        target,
+        samples: [{ t: performance.now(), p: target }],
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: 0
+      };
+      render();
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!drag) {
+        if (game.phase !== 'rolling') canvas.style.cursor = dieUnderPointer(e) ? 'grab' : '';
+        return;
+      }
+      drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY));
+      const target = dragTarget(e);
+      if (!target) return;
+      const now = performance.now();
+      drag.target = target;
+      drag.samples.push({ t: now, p: target });
+      drag.samples = drag.samples.filter(s => now - s.t < 100);
+    });
+
+    function release(e) {
+      if (!drag) return;
+      const now = performance.now();
+      const { die, samples, moved } = drag;
+      const { body } = die;
+      samples.push({ t: now, p: dragTarget(e) || drag.target });
+      drag = null;
+      canvas.style.cursor = '';
+
+      // Pointer velocity over the last ~100 ms
+      const recent = samples.filter(s => now - s.t < 100);
+      const velocity = new THREE.Vector3();
+      if (recent.length > 1) {
+        const first = recent[0];
+        const last = recent[recent.length - 1];
+        const dt = (last.t - first.t) / 1000;
+        if (dt > 0) velocity.subVectors(last.p, first.p).divideScalar(dt);
+      }
+      const speed = velocity.length();
+
+      body.type = CANNON.Body.DYNAMIC;
+      body.allowSleep = true;
+      body.wakeUp();
+
+      // A hard flick rolls all the dice before the bet, or rerolls just this die after it
+      if (speed >= GENTLE_SPEED) {
+        const handThrow = { die, velocity, speed };
+        const thrown = game.phase === 'bet' ? roll(handThrow)
+          : game.phase === 'decide' ? reroll([die], handThrow)
+          : false;
+        if (thrown) return;
+      }
+
+      // Otherwise set it down flat: same face stays up
+      body.velocity.set(velocity.x * 0.3, 0, velocity.z * 0.3);
+      body.angularVelocity.setZero();
+      if (moved < 6 && game.phase === 'decide') setSelected(die, !die.selected);
+      render();
+    }
+
+    canvas.addEventListener('pointerup', release);
+    canvas.addEventListener('pointercancel', release);
+
+    // Steer the held die toward the pointer each frame
+    function updateDrag() {
+      const { body } = drag.die;
+      body.velocity.set(
+        (drag.target.x - body.position.x) * 15,
+        (LIFT - body.position.y) * 15,
+        (drag.target.z - body.position.z) * 15
+      );
+    }
+
+    // --- Controls ---
+
+    BETS.forEach(value => {
+      const b = document.createElement('button');
+      b.textContent = `$${value}`;
+      b.dataset.bet = value;
+      b.addEventListener('click', () => {
+        game.bet = value;
+        if (upfrontCost() > game.money) game.exploding = false;
+        render();
+      });
+      betsEl.appendChild(b);
+    });
+
+    Object.keys(DIE_TYPES).forEach(key => {
+      const b = document.createElement('button');
+      b.textContent = key;
+      b.dataset.type = key;
+      b.addEventListener('click', () => setDieType(key));
+      diceTypesEl.appendChild(b);
+    });
+
+    // --- Debug ---
+
+    const FEES_KEY = 'beat-the-target-fees';
+    const DEFAULT_FEES = Object.fromEntries(Object.entries(DIE_TYPES).map(([key, t]) => [key, t.fee]));
+    const feeInputs = {};
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(FEES_KEY) || '{}');
+      Object.entries(saved).forEach(([key, fee]) => {
+        if (DIE_TYPES[key] && Number.isFinite(fee) && fee >= 0) DIE_TYPES[key].fee = fee;
+      });
+    } catch {}
+
+    function saveFees() {
+      const fees = Object.fromEntries(Object.entries(DIE_TYPES).map(([key, t]) => [key, t.fee]));
+      try { localStorage.setItem(FEES_KEY, JSON.stringify(fees)); } catch {}
+    }
+
+    const PENALTY_KEY = 'beat-the-target-penalty-scale';
+    const penaltyScaleInput = $('penaltyScale');
+    const penaltyAmountEl = $('penaltyAmount');
+
+    try {
+      const saved = Number(localStorage.getItem(PENALTY_KEY));
+      if (localStorage.getItem(PENALTY_KEY) !== null && Number.isFinite(saved) && saved >= 0) tuning.penaltyScale = saved;
+    } catch {}
+
+    function renderDebug() {
+      // Don't overwrite a field while it's being typed in
+      Object.entries(feeInputs).forEach(([key, { input, amount }]) => {
+        if (document.activeElement !== input) input.value = Math.round(DIE_TYPES[key].fee * 100);
+        amount.textContent = `= $${priceOf(DIE_TYPES[key].fee)} at a $${game.bet} bet`;
+      });
+
+      if (document.activeElement !== penaltyScaleInput) penaltyScaleInput.value = Math.round(tuning.penaltyScale * 100);
+      const extra = payoutWith(MAX_PENALTY) - payoutWith(0);
+      penaltyAmountEl.textContent = `= ${dollars(extra)} with ${MAX_PENALTY} red dice now`;
+    }
+
+    penaltyScaleInput.addEventListener('input', () => {
+      const pct = Number(penaltyScaleInput.value);
+      if (penaltyScaleInput.value === '' || !Number.isFinite(pct) || pct < 0) return;
+      tuning.penaltyScale = pct / 100;
+      try { localStorage.setItem(PENALTY_KEY, tuning.penaltyScale); } catch {}
+      render();
+    });
+
+    Object.keys(DIE_TYPES).forEach(key => {
+      const row = document.createElement('label');
+      row.className = 'debug-row';
+      row.innerHTML = `<span>${key} cost</span>
+        <span><input type="number" min="0" step="5"> % of bet <span class="debug-amount"></span></span>`;
+      const input = row.querySelector('input');
+      input.addEventListener('input', () => {
+        const pct = Number(input.value);
+        if (input.value === '' || !Number.isFinite(pct) || pct < 0) return;
+        DIE_TYPES[key].fee = pct / 100;
+        saveFees();
+        render();
+      });
+      feeInputs[key] = { input, amount: row.querySelector('.debug-amount') };
+      $('debugFees').appendChild(row);
+    });
+
+    $('debugReset').addEventListener('click', () => {
+      Object.entries(DEFAULT_FEES).forEach(([key, fee]) => { DIE_TYPES[key].fee = fee; });
+      tuning.penaltyScale = 1;
+      try {
+        localStorage.removeItem(FEES_KEY);
+        localStorage.removeItem(PENALTY_KEY);
+      } catch {}
+      render();
+    });
+
+    penMinusBtn.addEventListener('click', () => setPenalty(game.penalty - 1));
+    penPlusBtn.addEventListener('click', () => setPenalty(game.penalty + 1));
+    explodeInput.addEventListener('change', () => {
+      game.exploding = explodeInput.checked;
+      render();
+    });
+
+    primaryBtn.addEventListener('click', () => {
+      if (game.phase === 'over') newGame();
+      else if (game.phase === 'bet') roll();
+      else if (game.phase === 'decide') reroll(dice.filter(d => d.selected));
+    });
+    secondaryBtn.addEventListener('click', () => {
+      if (game.phase === 'decide' && !drag) resolve(game.result.total, game.result.sum);
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+        e.preventDefault();
+        if (!primaryBtn.disabled) primaryBtn.click();
+      }
+    });
+
+    // --- Loop ---
+
+    function resize() {
+      const { clientWidth: w, clientHeight: h } = tableEl;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+
+    let last = performance.now();
+    function animate(now) {
+      const dt = Math.min((now - last) / 1000, 0.1);
+      last = now;
+      if (drag) updateDrag();
+      world.step(1 / 60, dt, 5);
+      syncMeshes();
+      if (game.phase === 'rolling') checkSettled(now);
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', resize);
+
+    layoutDice();
+    newGame();
+    resize();
+    syncMeshes();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
