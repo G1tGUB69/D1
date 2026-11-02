@@ -11,8 +11,6 @@
       --text: #1d2330;
       --muted: #6b7280;
       --accent: #3b5bdb;
-      --die: #ffffff;
-      --pip: #1d2330;
       --border: #e2e5ea;
       --table: #eceef2;
       --win: #2b8a3e;
@@ -26,8 +24,6 @@
         --text: #e8eaef;
         --muted: #9aa0ab;
         --accent: #6c8cff;
-        --die: #f3f4f6;
-        --pip: #1d2330;
         --border: #2c3039;
         --table: #262a33;
         --win: #51cf66;
@@ -39,9 +35,8 @@
 
     body {
       margin: 0;
-      min-height: 100vh;
+      height: 100vh;
       display: flex;
-      align-items: center;
       justify-content: center;
       padding: 16px;
       background: var(--bg);
@@ -51,14 +46,27 @@
 
     .card {
       width: 100%;
-      max-width: 460px;
+      max-width: 720px;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 24px;
       text-align: center;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
     }
+
+    /* Everything above the dice scrolls; the dice and buttons stay at the bottom */
+    .scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+
+    .bottom { flex-shrink: 0; }
 
     h1 {
       margin: 0 0 6px;
@@ -103,7 +111,7 @@
     .table {
       position: relative;
       width: 100%;
-      height: 240px;
+      height: 300px;
       margin-bottom: 16px;
       background: var(--table);
       border: 1px solid var(--border);
@@ -168,6 +176,36 @@
     .chips {
       flex-wrap: wrap;
       justify-content: flex-end;
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+      vertical-align: middle;
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+    }
+
+    .slider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      max-width: 240px;
+    }
+
+    .slider input {
+      flex: 1;
+      min-width: 0;
+      accent-color: var(--accent);
+    }
+
+    .slider span {
+      min-width: 3em;
+      text-align: right;
+      font-weight: 600;
     }
 
     .stepper span {
@@ -247,7 +285,7 @@
     }
 
     .history {
-      margin-top: 20px;
+      margin-top: 4px;
       padding-top: 16px;
       border-top: 1px solid var(--border);
       display: flex;
@@ -265,13 +303,37 @@
     }
 
     .debug {
-      margin-top: 16px;
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 260px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 12px 16px;
       text-align: left;
       font-size: 0.85rem;
       color: var(--muted);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
     }
 
     .debug summary { cursor: pointer; }
+
+    .debug-group > summary {
+      margin: 16px 0 0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text);
+    }
+
+    .debug-note {
+      margin: 2px 0 0;
+      font-size: 0.75rem;
+    }
 
     .debug-row {
       display: flex;
@@ -305,16 +367,15 @@
 <body>
   <main class="card">
     <h1>Beat the Target</h1>
-    <p class="rules">Bet, pick your dice, then roll two of them. Reach the target or higher to win. Spend money on rerolls and exploding dice, or add penalty dice for a bigger payout.</p>
+    <div class="scroll">
+    <p class="rules">Pick a difficulty, bet, choose your dice and how many, then roll them. Reach the target or higher to win. Buy up to 3 rerolls and exploding dice, or add penalty dice for a bigger payout.</p>
 
     <div class="stats">
-      <div><span class="label">Money</span><span class="value" id="money">$100</span></div>
+      <div><span class="label">Money</span><span class="value" id="money">$10,000</span></div>
       <div><span class="label">Target</span><span class="value" id="target">–</span></div>
-      <div><span class="label">Rerolls</span><span class="value" id="rerolls">3</span></div>
-      <div><span class="label">Best</span><span class="value" id="best">$100</span></div>
+      <div><span class="label">Rerolls</span><span class="value" id="rerolls">0</span></div>
+      <div><span class="label">Best</span><span class="value" id="best">$10,000</span></div>
     </div>
-
-    <div class="table" id="table"></div>
 
     <div class="label">Total</div>
     <div class="total" id="total">–</div>
@@ -322,12 +383,27 @@
 
     <section class="options" id="options">
       <div class="option">
+        <span>Difficulty <small id="difficultyInfo"></small></span>
+        <div class="chips" id="difficulties"></div>
+      </div>
+      <div class="option">
         <span>Bet</span>
-        <div class="chips" id="bets"></div>
+        <div class="slider">
+          <input type="range" id="bet" step="100" aria-label="Bet">
+          <span id="betValue">$1,000</span>
+        </div>
       </div>
       <div class="option">
         <span>Dice <small>Bigger dice win more often, cost more and pay less</small></span>
         <div class="chips" id="diceTypes"></div>
+      </div>
+      <div class="option">
+        <span>Number of dice <small>Targets scale with how many you roll</small></span>
+        <div class="stepper">
+          <button id="countMinus">−</button>
+          <span id="diceCount">2</span>
+          <button id="countPlus">+</button>
+        </div>
       </div>
       <div class="option">
         <span>Penalty dice <small>Red dice subtract from the total, raising the payout</small></span>
@@ -338,30 +414,101 @@
         </div>
       </div>
       <div class="option">
+        <span>Penalty dice type <small>Bigger red dice subtract more, raising the payout more</small></span>
+        <div class="chips" id="penaltyTypes"></div>
+      </div>
+      <div class="option">
         <span>Exploding dice <small>Each max roll adds a bonus die</small></span>
-        <label class="toggle"><input type="checkbox" id="explode"><span id="explodeCost">+$5</span></label>
+        <label class="toggle"><input type="checkbox" id="explode"><span id="explodeCost">+$500</span></label>
+      </div>
+      <div class="option">
+        <span>Rerolls <small id="rerollInfo">Bought before the roll, each one costs more</small></span>
+        <div class="stepper">
+          <button id="rerollMinus">−</button>
+          <span id="rerollCount">0</span>
+          <button id="rerollPlus">+</button>
+        </div>
       </div>
       <div class="summary" id="summary"></div>
     </section>
 
-    <div class="buttons">
-      <button id="primary">Roll</button>
-      <button id="secondary" class="secondary" hidden>Take the loss</button>
-    </div>
-    <div class="hint" id="hint"></div>
-
     <div class="history" id="history"></div>
+    </div>
 
-    <details class="debug">
-      <summary>Debug</summary>
-      <div id="debugFees"></div>
+    <div class="bottom">
+      <div class="table" id="table"></div>
+      <div class="buttons">
+        <button id="primary">Roll</button>
+        <button id="secondary" class="secondary" hidden>Take the loss</button>
+      </div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </main>
+
+  <details class="debug">
+    <summary>Debug</summary>
+
+    <details class="debug-group">
+      <summary>1. Dice colors</summary>
+      <p class="debug-note">Body colour of each dice type (red penalty and gold bonus dice keep theirs)</p>
+      <div id="debugColors"></div>
+    </details>
+
+    <details class="debug-group">
+      <summary>2. Chips colors</summary>
+      <p class="debug-note">Value and colour of the 5 chip types stacked beside the table (bets are shown with the biggest chips first)</p>
+      <div id="debugChips"></div>
+    </details>
+
+    <details class="debug-group">
+      <summary>3. Difficulty</summary>
+      <p class="debug-note">Target range, in % of the way from the lowest to the highest total the dice can roll</p>
+      <div id="debugDifficulties"></div>
+    </details>
+
+    <details class="debug-group">
+      <summary>4. Bet</summary>
+      <p class="debug-note">Limits of the bet slider</p>
       <label class="debug-row">
-        <span>Penalty payout raise</span>
+        <span>Min bet</span>
+        <span>$ <input type="number" id="betMin" min="1" step="100"></span>
+      </label>
+      <label class="debug-row">
+        <span>Max bet</span>
+        <span>$ <input type="number" id="betMax" min="1" step="100"></span>
+      </label>
+    </details>
+
+    <details class="debug-group">
+      <summary>5. Dice count</summary>
+      <p class="debug-note">How many regular dice the player can choose to roll</p>
+      <label class="debug-row">
+        <span>Min dice</span>
+        <span><input type="number" id="countMin" min="1" max="20" step="1"></span>
+      </label>
+      <label class="debug-row">
+        <span>Max dice</span>
+        <span><input type="number" id="countMax" min="1" max="20" step="1"></span>
+      </label>
+    </details>
+
+    <details class="debug-group">
+      <summary>6. Dice cost</summary>
+      <p class="debug-note">Extra cost of each dice type, in % of the bet</p>
+      <div id="debugFees"></div>
+    </details>
+
+    <details class="debug-group">
+      <summary>7. Penalty</summary>
+      <p class="debug-note">How much of the odds-based payout raise from penalty dice is applied (100% = fair)</p>
+      <label class="debug-row">
+        <span>Payout raise</span>
         <span><input type="number" id="penaltyScale" min="0" step="10"> % <span class="debug-amount" id="penaltyAmount"></span></span>
       </label>
-      <button id="debugReset" class="secondary">Reset debug settings</button>
     </details>
-  </main>
+
+    <button id="debugReset" class="secondary">Reset debug settings</button>
+  </details>
 
   <script type="importmap">
     {
@@ -380,17 +527,26 @@
 
     // --- Game settings ---
 
-    const START_MONEY = 100;
-    const BETS = [5, 10, 25, 50];
-    const TARGET_MIN = 5;
-    const TARGET_MAX = 11;
+    const START_MONEY = 10000;
+    const DEFAULT_BET_LIMITS = { min: 500, max: 5000 };
+    const betLimits = { ...DEFAULT_BET_LIMITS };   // adjustable in the debug menu
+    const DEFAULT_DICE_COUNT_LIMITS = { min: 1, max: 5 };
+    const diceCountLimits = { ...DEFAULT_DICE_COUNT_LIMITS };   // adjustable in the debug menu
+    const DICE_COUNT_CAP = 20;   // hard ceiling, keeps the odds calculation and the table manageable
+    // Target bands, as a fraction of the way from the lowest to the highest total the dice can roll
+    const DIFFICULTIES = {
+      easy:     { label: 'Easy',      from: 0.15, to: 0.35 },
+      medium:   { label: 'Medium',    from: 0.35, to: 0.55 },
+      hard:     { label: 'Hard',      from: 0.55, to: 0.75 },
+      veryHard: { label: 'Very hard', from: 0.75, to: 1 }
+    };
     const MAX_PENALTY = 2;
     const MAX_REROLLS = 3;
-    const MAX_DICE = 8;
+    const MAX_BONUS_DICE = 6;    // cap on dice added by explosions in one round
     const HOUSE_RETURN = 0.95;   // payouts return 95% of fair odds
     const MAX_MULTIPLIER = 50;
     const EXPLODE_PRICE = 0.5;   // fraction of the bet
-    const REROLL_PRICE = 0.25;   // fraction of the bet, doubling with each reroll
+    const REROLL_PRICE = 0.25;   // fraction of the bet, doubling with each reroll bought
 
     // Which of the 9 grid cells (0–8) show a pip for each face
     const FACES = {
@@ -413,9 +569,10 @@
       { dir: new THREE.Vector3( 0, 0,-1), value: 4 }
     ];
 
-    // Arena half-extents (world units, die size = 1)
+    // Arena half-extents (world units)
     const ARENA_W = 3;
     const ARENA_D = 2;
+    const DIE_SIZE = 0.5;      // edge of a d6; the other dice are scaled to match
 
     const $ = id => document.getElementById(id);
     const tableEl = $('table');
@@ -426,13 +583,24 @@
     const totalEl = $('total');
     const breakdownEl = $('breakdown');
     const optionsEl = $('options');
-    const betsEl = $('bets');
+    const betInput = $('bet');
+    const betValueEl = $('betValue');
     const diceTypesEl = $('diceTypes');
+    const penaltyTypesEl = $('penaltyTypes');
+    const difficultiesEl = $('difficulties');
+    const difficultyInfoEl = $('difficultyInfo');
     const penMinusBtn = $('penMinus');
     const penPlusBtn = $('penPlus');
     const penCountEl = $('penCount');
+    const countMinusBtn = $('countMinus');
+    const countPlusBtn = $('countPlus');
+    const diceCountEl = $('diceCount');
     const explodeInput = $('explode');
     const explodeCostEl = $('explodeCost');
+    const rerollMinusBtn = $('rerollMinus');
+    const rerollPlusBtn = $('rerollPlus');
+    const rerollCountEl = $('rerollCount');
+    const rerollInfoEl = $('rerollInfo');
     const summaryEl = $('summary');
     const primaryBtn = $('primary');
     const secondaryBtn = $('secondary');
@@ -440,12 +608,27 @@
     const historyEl = $('history');
     const history = [];
 
-    const css = getComputedStyle(document.documentElement);
     const DIE_STYLES = {
-      normal:  { bg: css.getPropertyValue('--die').trim(), pip: css.getPropertyValue('--pip').trim() },
       penalty: { bg: '#c92a2a', pip: '#ffffff' },
       bonus:   { bg: '#f2c94c', pip: '#1d2330' }
     };
+
+    // Body colour of the regular dice of each type (adjustable in the debug menu)
+    const DEFAULT_DICE_COLORS = { d4: '#8ce99a', d6: '#f3f4f6', d8: '#74c0fc', d10: '#b197fc', d20: '#ffa94d' };
+    const diceColors = { ...DEFAULT_DICE_COLORS };
+
+    // Dark pips on light dice, light pips on dark ones
+    function pipColorFor(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      const brightness = 0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255);
+      return brightness > 150 ? '#1d2330' : '#ffffff';
+    }
+
+    function styleFor(typeKey, kind) {
+      if (kind !== 'normal') return DIE_STYLES[kind];
+      const bg = diceColors[typeKey];
+      return { bg, pip: pipColorFor(bg) };
+    }
 
     // --- Rendering ---
 
@@ -456,26 +639,164 @@
     tableEl.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
+    // Tilted view so the tray's rim and depth read as 3D
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
-    camera.position.set(0, 10, 5.5);
-    camera.lookAt(0, 0, 0.3);
+    const CAMERA_POS = new THREE.Vector3(0, 9, 8);
+    const VIEW_HALF_WIDTH = 5.3;   // tray plus the chips beside it, kept in view on narrow screens
+    camera.position.copy(CAMERA_POS);
+    camera.lookAt(0, 0, 0.2);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x8890a0, 1.6));
     const sun = new THREE.DirectionalLight(0xffffff, 1.8);
     sun.position.set(3, 10, 4);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5 });
+    Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6 });
     scene.add(sun);
 
-    // Invisible floor that only shows shadows, so the CSS table colour shows through
+    // Invisible floor around the tray that only shows shadows, so the CSS table colour shows through
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(20, 20),
       new THREE.ShadowMaterial({ opacity: 0.22 })
     );
     floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.01;
     floor.receiveShadow = true;
     scene.add(floor);
+
+    // Closed dice tray: felt surface inside the physics walls, wooden rim around it
+    const RIM_HEIGHT = 0.45;
+    const RIM_WIDTH = 0.3;
+
+    const felt = new THREE.Mesh(
+      new THREE.PlaneGeometry(ARENA_W * 2, ARENA_D * 2),
+      new THREE.MeshStandardMaterial({ color: 0x1f6b47, roughness: 1 })
+    );
+    felt.rotation.x = -Math.PI / 2;
+    felt.receiveShadow = true;
+    scene.add(felt);
+
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x7a4b2a, roughness: 0.6 });
+    function addRim(width, depth, x, z) {
+      const rim = new THREE.Mesh(new RoundedBoxGeometry(width, RIM_HEIGHT, depth, 3, 0.08), woodMat);
+      rim.position.set(x, RIM_HEIGHT / 2, z);
+      rim.castShadow = true;
+      rim.receiveShadow = true;
+      scene.add(rim);
+    }
+    const outerW = ARENA_W * 2 + RIM_WIDTH * 2;
+    addRim(outerW, RIM_WIDTH, 0, -ARENA_D - RIM_WIDTH / 2);           // back
+    addRim(outerW, RIM_WIDTH, 0, ARENA_D + RIM_WIDTH / 2);            // front
+    addRim(RIM_WIDTH, ARENA_D * 2, -ARENA_W - RIM_WIDTH / 2, 0);      // left
+    addRim(RIM_WIDTH, ARENA_D * 2, ARENA_W + RIM_WIDTH / 2, 0);       // right
+
+    // --- Bet chips, stacked beside the tray ---
+
+    const CHIP_RADIUS = 0.36;
+    const CHIP_HEIGHT = 0.07;
+    const CHIP_STACK_MAX = 10;
+    // Five chip types (value and colour adjustable in the debug menu)
+    const DEFAULT_CHIPS = [
+      { value: 10000, color: '#212529' },
+      { value: 2500,  color: '#2b8a3e' },
+      { value: 1000,  color: '#1c7ed6' },
+      { value: 500,   color: '#e03131' },
+      { value: 100,   color: '#f1f3f5' }
+    ];
+    const chips = DEFAULT_CHIPS.map(chip => ({ ...chip }));
+
+    function chipTexture(canvas) {
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    // Side with edge stripes, faces with a dashed ring; built once per chip colour.
+    // Stripes are dark on light chips and white on dark ones, like the pips on dice.
+    function chipMaterials(chip) {
+      if (chip.materials) return chip.materials;
+      const stripe = pipColorFor(chip.color) === '#ffffff' ? '#ffffff' : '#495057';
+
+      const side = document.createElement('canvas');
+      side.width = 256;
+      side.height = 16;
+      let ctx = side.getContext('2d');
+      ctx.fillStyle = chip.color;
+      ctx.fillRect(0, 0, 256, 16);
+      ctx.fillStyle = stripe;
+      for (let i = 0; i < 8; i++) ctx.fillRect(i * 32 + 8, 0, 16, 16);
+
+      const top = document.createElement('canvas');
+      top.width = top.height = 128;
+      ctx = top.getContext('2d');
+      ctx.fillStyle = chip.color;
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.strokeStyle = stripe;
+      ctx.lineWidth = 12;
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        ctx.beginPath();
+        ctx.arc(64, 64, 56, a, a + Math.PI / 8);
+        ctx.stroke();
+      }
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(64, 64, 36, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const face = new THREE.MeshStandardMaterial({ map: chipTexture(top), roughness: 0.5 });
+      chip.materials = [new THREE.MeshStandardMaterial({ map: chipTexture(side), roughness: 0.5 }), face, face];
+      return chip.materials;
+    }
+
+    // Change one chip type's value and colour, then restack the bet
+    function setChip(i, value, color) {
+      const chip = chips[i];
+      if (chip.color !== color && chip.materials) {
+        new Set(chip.materials).forEach(m => { m.map.dispose(); m.dispose(); });
+        delete chip.materials;
+      }
+      chip.value = value;
+      chip.color = color;
+      chipsShown = null;
+      showChips(game.bet);
+    }
+
+    const chipGeo = new THREE.CylinderGeometry(CHIP_RADIUS, CHIP_RADIUS, CHIP_HEIGHT, 32);
+    const chipGroup = new THREE.Group();
+    chipGroup.position.set(ARENA_W + RIM_WIDTH + 0.85, 0, 0);
+    scene.add(chipGroup);
+    let chipsShown = null;
+
+    // Split the amount into the biggest chips first, in stacks of up to 10, two stacks per row.
+    // Anything smaller than the smallest chip isn't shown.
+    function showChips(amount) {
+      if (amount === chipsShown) return;
+      chipsShown = amount;
+      chipGroup.clear();   // meshes share the geometry and materials, nothing to dispose
+
+      const stacks = [];
+      let rest = amount;
+      [...chips].sort((a, b) => b.value - a.value).forEach(chip => {
+        let count = Math.floor(rest / chip.value);
+        rest -= count * chip.value;
+        for (; count > 0; count -= CHIP_STACK_MAX) stacks.push({ chip, count: Math.min(count, CHIP_STACK_MAX) });
+      });
+
+      const rows = Math.ceil(stacks.length / 2);
+      stacks.forEach(({ chip, count }, i) => {
+        const x = stacks.length === 1 ? 0 : (i % 2 ? 0.4 : -0.4);
+        const z = (Math.floor(i / 2) - (rows - 1) / 2) * 0.8;
+        for (let j = 0; j < count; j++) {
+          const mesh = new THREE.Mesh(chipGeo, chipMaterials(chip));
+          mesh.position.set(x + rand(-0.02, 0.02), CHIP_HEIGHT * (j + 0.5), z + rand(-0.02, 0.02));
+          mesh.rotation.y = rand(0, Math.PI * 2);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          chipGroup.add(mesh);
+        }
+      });
+    }
 
     function faceTexture(value, style) {
       const size = 256;
@@ -664,30 +985,49 @@
 
     // fee: extra cost as a fraction of the bet — the bigger the die, the higher the price
     const DIE_TYPES = {
-      d4: polyDie(4, finishSolid(triangleFaces(tetra), 1), { fee: 0, corners: true }),
+      d4: polyDie(4, finishSolid(triangleFaces(tetra), DIE_SIZE), { fee: 0, corners: true }),
       d6: {
         sides: 6,
         fee: 0.1,
-        geometry: new RoundedBoxGeometry(1, 1, 1, 4, 0.12),
+        geometry: new RoundedBoxGeometry(DIE_SIZE, DIE_SIZE, DIE_SIZE, 4, DIE_SIZE * 0.12),
         faces: AXES.map(a => ({ normal: a.dir, value: a.value })),
         corners: null,
-        makeShape: () => new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)),
+        makeShape: () => new CANNON.Box(new CANNON.Vec3(DIE_SIZE / 2, DIE_SIZE / 2, DIE_SIZE / 2)),
         makeTextures: style => AXES.map(a => faceTexture(a.value, style))
       },
-      d8: polyDie(8, finishSolid(triangleFaces(octa), 0.8), { fee: 0.2, font: 0.3 }),
-      d10: polyDie(10, finishSolid(d10Solid(), 0.8), { fee: 0.3, font: 0.26 }),
-      d20: polyDie(20, finishSolid(triangleFaces(icosa), 0.8), { fee: 0.5, font: 0.28 })
+      d8: polyDie(8, finishSolid(triangleFaces(octa), DIE_SIZE * 0.8), { fee: 0.2, font: 0.3 }),
+      d10: polyDie(10, finishSolid(d10Solid(), DIE_SIZE * 0.8), { fee: 0.3, font: 0.26 }),
+      d20: polyDie(20, finishSolid(triangleFaces(icosa), DIE_SIZE * 0.8), { fee: 0.5, font: 0.28 })
     };
 
     const materialCache = {};
     function materialsFor(typeKey, kind) {
       const key = `${typeKey}-${kind}`;
       if (!materialCache[key]) {
-        materialCache[key] = DIE_TYPES[typeKey].makeTextures(DIE_STYLES[kind]).map(map =>
+        materialCache[key] = DIE_TYPES[typeKey].makeTextures(styleFor(typeKey, kind)).map(map =>
           new THREE.MeshStandardMaterial({ map, roughness: 0.45 })
         );
       }
       return materialCache[key];
+    }
+
+    // Rebuild a type's textures in the new colour and repaint the regular dice of that type on the table
+    function setDiceColor(typeKey, hex) {
+      diceColors[typeKey] = hex;
+      const key = `${typeKey}-normal`;
+      if (materialCache[key]) {
+        materialCache[key].forEach(m => {
+          m.map.dispose();
+          m.dispose();
+        });
+        delete materialCache[key];
+      }
+      dice.filter(d => d.kind === 'normal' && d.type === DIE_TYPES[typeKey]).forEach(d => {
+        d.mesh.material.forEach(m => m.dispose());
+        d.mesh.material = materialsFor(typeKey, 'normal').map(m => m.clone());
+        setSelected(d, d.selected);
+      });
+      render();
     }
 
     // --- Physics ---
@@ -719,9 +1059,11 @@
     const dice = [];
 
     function addDie(kind, x, y, z) {
-      const type = DIE_TYPES[game.dieType];
+      // Penalty dice have their own type; bonus dice match the regular ones
+      const typeKey = kind === 'penalty' ? game.penaltyType : game.dieType;
+      const type = DIE_TYPES[typeKey];
       // Own copy of the materials so a die can be highlighted on its own
-      const mesh = new THREE.Mesh(type.geometry, materialsFor(game.dieType, kind).map(m => m.clone()));
+      const mesh = new THREE.Mesh(type.geometry, materialsFor(typeKey, kind).map(m => m.clone()));
       mesh.castShadow = true;
       scene.add(mesh);
 
@@ -790,17 +1132,24 @@
       return { value, flat: -bottom };
     }
 
-    // Two white dice plus any penalty dice, dropped in a row
+    // The regular dice plus any penalty dice, dropped in rows of up to 8
     function layoutDice() {
       [...dice].forEach(removeDie);
-      const kinds = ['normal', 'normal', ...Array(game.penalty).fill('penalty')];
-      kinds.forEach((kind, i) => addDie(kind, (i - (kinds.length - 1) / 2) * 1.4, 1.2, 0));
+      const kinds = [...Array(game.diceCount).fill('normal'), ...Array(game.penalty).fill('penalty')];
+      const perRow = 8;
+      const rows = Math.ceil(kinds.length / perRow);
+      const gap = DIE_SIZE * 1.4;
+      kinds.forEach((kind, i) => {
+        const row = Math.floor(i / perRow);
+        const inRow = Math.min(perRow, kinds.length - row * perRow);
+        const col = i % perRow;
+        addDie(kind, (col - (inRow - 1) / 2) * gap, 1.2, (row - (rows - 1) / 2) * gap);
+      });
     }
 
     // --- Throwing ---
 
     const rand = (min, max) => min + Math.random() * (max - min);
-    const randInt = (min, max) => Math.floor(rand(min, max + 1));
     const MAX_THROW = 25;
     const GENTLE_SPEED = 4;    // release speed (units/s) below which a held die is just set down
     let rollStart = 0;
@@ -867,10 +1216,15 @@
 
     const game = {
       money: START_MONEY,
-      bet: 10,
+      bet: 1000,
       dieType: 'd6',
+      penaltyType: 'd6',
+      difficulty: 'medium',
+      targetRoll: 0,       // random 0–1 drawn each round, placed inside the difficulty's range
+      diceCount: 2,
       penalty: 0,
       exploding: false,
+      rerolls: 0,          // rerolls bought for the round, paid upfront
       target: 0,
       phase: 'bet',        // bet | rolling | decide | over
       rerollsUsed: 0,
@@ -881,55 +1235,106 @@
     };
 
     let best = START_MONEY;
-    try { best = Number(localStorage.getItem('beat-the-target-best')) || START_MONEY; } catch {}
+    try { best = Math.max(START_MONEY, Number(localStorage.getItem('beat-the-target-best')) || 0); } catch {}
 
-    const dollars = n => `${n < 0 ? '−' : '+'}$${Math.abs(n)}`;
+    const usd = n => `$${n.toLocaleString('en-US')}`;
+    const dollars = n => `${n < 0 ? '−' : '+'}${usd(Math.abs(n))}`;
     const sides = () => DIE_TYPES[game.dieType].sides;
     // Fraction of the bet, rounded up to whole dollars (toFixed avoids 0.3 × 10 = 3.0000000000000004)
     const priceOf = fraction => Math.ceil(Number((game.bet * fraction).toFixed(6)));
     const diceFee = () => priceOf(DIE_TYPES[game.dieType].fee);
     const explodeCost = () => Math.ceil(game.bet * EXPLODE_PRICE);
-    const upfrontCost = () => game.bet + diceFee() + (game.exploding ? explodeCost() : 0);
-    const rerollCost = () => Math.ceil(game.bet * REROLL_PRICE) * 2 ** game.rerollsUsed;
-    const canReroll = () => game.rerollsUsed < MAX_REROLLS && rerollCost() <= game.money;
+    // Price of the nth reroll bought (0-based); the first costs a quarter of the bet, then it doubles
+    const rerollPrice = n => Math.ceil(game.bet * REROLL_PRICE) * 2 ** n;
+    const rerollsCost = (count = game.rerolls) => {
+      let cost = 0;
+      for (let i = 0; i < count; i++) cost += rerollPrice(i);
+      return cost;
+    };
+    const upfrontCost = () => game.bet + diceFee() + (game.exploding ? explodeCost() : 0) + rerollsCost();
+    const canReroll = () => game.rerollsUsed < game.rerolls;
 
-    // Chance that two dice minus the penalty dice reach the target (ignoring rerolls and explosions)
-    function winChance(target, sides, penalty) {
+    // Highest bet allowed right now: the debug max, or all the player's money if that's less
+    const betCeiling = () => Math.max(betLimits.min, Math.min(betLimits.max, game.money));
+    const clampBet = () => { game.bet = Math.min(Math.max(game.bet, betLimits.min), betCeiling()); };
+
+    // Drop paid extras the player can no longer afford: rerolls first, then exploding dice
+    function fitBudget() {
+      while (game.rerolls > 0 && upfrontCost() > game.money) game.rerolls--;
+      if (upfrontCost() > game.money) game.exploding = false;
+    }
+
+    // Chance that the dice minus the penalty dice reach the target (ignoring rerolls and explosions)
+    function winChance(target, sides, count, penaltySides, penalty) {
       let dist = new Map([[0, 1]]);
-      const addRoll = sign => {
+      const addRoll = (faces, sign) => {
         const next = new Map();
         dist.forEach((p, sum) => {
-          for (let f = 1; f <= sides; f++) {
+          for (let f = 1; f <= faces; f++) {
             const key = sum + sign * f;
-            next.set(key, (next.get(key) || 0) + p / sides);
+            next.set(key, (next.get(key) || 0) + p / faces);
           }
         });
         dist = next;
       };
-      addRoll(1);
-      addRoll(1);
-      for (let i = 0; i < penalty; i++) addRoll(-1);
+      for (let i = 0; i < count; i++) addRoll(sides, 1);
+      for (let i = 0; i < penalty; i++) addRoll(penaltySides, -1);
 
       let chance = 0;
       dist.forEach((p, sum) => { if (sum >= target) chance += p; });
       return chance;
     }
 
-    const baseChance = () => winChance(game.target, sides(), game.penalty);
+    const penaltySides = () => DIE_TYPES[game.penaltyType].sides;
+    const baseChance = () => winChance(game.target, sides(), game.diceCount, penaltySides(), game.penalty);
     // penaltyScale: how much of the odds-based payout raise from penalty dice is applied (1 = fair)
     const tuning = { penaltyScale: 1 };
     const multiplierFor = chance => Math.min(MAX_MULTIPLIER, HOUSE_RETURN / chance);
 
     function payoutWith(penalty) {
-      const plain = multiplierFor(winChance(game.target, sides(), 0));
-      const withPenalty = multiplierFor(winChance(game.target, sides(), penalty));
+      const plain = multiplierFor(winChance(game.target, sides(), game.diceCount, penaltySides(), 0));
+      const withPenalty = multiplierFor(winChance(game.target, sides(), game.diceCount, penaltySides(), penalty));
       return Math.floor(game.bet * Math.max(0, plain + (withPenalty - plain) * tuning.penaltyScale));
     }
     const payout = () => payoutWith(game.penalty);
 
+    // Target range for the current difficulty, scaled to the dice in play (penalty dice not counted)
+    function targetRange(difficulty = game.difficulty) {
+      const { from, to } = DIFFICULTIES[difficulty];
+      const lowest = game.diceCount;
+      const span = game.diceCount * (sides() - 1);
+      const min = Math.ceil(lowest + from * span - 1e-9);
+      const max = Math.max(min, Math.floor(lowest + to * span + 1e-9));
+      return { min, max };
+    }
+
+    const clampDiceCount = n => Math.min(diceCountLimits.max, Math.max(diceCountLimits.min, n));
+
+    function setDiceCount(n) {
+      game.diceCount = clampDiceCount(n);
+      updateTarget();
+      layoutDice();
+      render();
+    }
+
+    const formatRange = ({ min, max }) => (min === max ? `${min}` : `${min}–${max}`);
+
+    // Same random draw each round, so switching dice or difficulty can't be used to fish for a new target
+    function updateTarget() {
+      const { min, max } = targetRange();
+      game.target = min + Math.floor(game.targetRoll * (max - min + 1));
+    }
+
     function setDieType(key) {
       game.dieType = key;
+      updateTarget();
       layoutDice();
+      render();
+    }
+
+    function setDifficulty(key) {
+      game.difficulty = key;
+      updateTarget();
       render();
     }
 
@@ -946,6 +1351,12 @@
       while (penaltyDice().length < n) addDie('penalty', rand(-2, 2), 2, rand(-1, 1));
       while (penaltyDice().length > n) removeDie(penaltyDice().pop());
       render();
+    }
+
+    function setPenaltyType(key) {
+      game.penaltyType = key;
+      dice.filter(d => d.kind === 'penalty').forEach(removeDie);
+      setPenalty(game.penalty);
     }
 
     function roll(handThrow) {
@@ -968,9 +1379,6 @@
     function reroll(list, handThrow) {
       if (game.phase !== 'decide' || drag || !list.length || !canReroll()) return false;
 
-      const cost = rerollCost();
-      game.money -= cost;
-      game.spent += cost;
       game.rerollsUsed++;
       dice.forEach(d => setSelected(d, false));
       throwDice(list, handThrow);
@@ -981,7 +1389,7 @@
       // Exploding dice: each white or gold max roll brings in one bonus die (which can explode too)
       if (game.rolledExploding) {
         const maxed = faces.filter(f => f.value === sides() && f.die.kind !== 'penalty' && !f.die.exploded);
-        const room = MAX_DICE - dice.length;
+        const room = MAX_BONUS_DICE - dice.filter(d => d.kind === 'bonus').length;
         if (maxed.length && room > 0) {
           maxed.slice(0, room).forEach(f => {
             f.die.exploded = true;
@@ -1022,23 +1430,24 @@
         try { localStorage.setItem('beat-the-target-best', best); } catch {}
       }
 
-      newRound(`${sum} vs ${game.target}: ${win ? `won $${game.payout}` : 'lost'} (${dollars(net)}).`);
+      newRound(`${sum} vs ${game.target}: ${win ? `won ${usd(game.payout)}` : 'lost'} (${dollars(net)}).`);
     }
 
     function newRound(message) {
-      game.target = randInt(TARGET_MIN, TARGET_MAX);
+      game.targetRoll = Math.random();
+      updateTarget();
       game.rerollsUsed = 0;
       game.spent = 0;
       game.result = null;
       dice.forEach(d => setSelected(d, false));
 
-      if (game.money < BETS[0]) {
+      if (game.money < betLimits.min) {
         game.phase = 'over';
         breakdownEl.textContent = `${message} You're out of money.`;
       } else {
         game.phase = 'bet';
-        if (game.bet > game.money) game.bet = [...BETS].reverse().find(b => b <= game.money);
-        if (upfrontCost() > game.money) game.exploding = false;
+        clampBet();
+        fitBudget();
         breakdownEl.textContent = `${message} New target: ${game.target}. Place your bet.`.trim();
       }
       render();
@@ -1057,38 +1466,59 @@
       const betting = game.phase === 'bet';
       const locked = !betting || busy;
 
-      moneyEl.textContent = `$${game.money}`;
+      moneyEl.textContent = usd(game.money);
       targetEl.textContent = game.target;
-      rerollsEl.textContent = MAX_REROLLS - game.rerollsUsed;
-      bestEl.textContent = `$${best}`;
+      rerollsEl.textContent = game.rerolls - game.rerollsUsed;
+      bestEl.textContent = usd(best);
 
       optionsEl.classList.toggle('locked', !betting);
-      betsEl.querySelectorAll('button').forEach(b => {
-        const value = Number(b.dataset.bet);
-        b.classList.toggle('active', value === game.bet);
-        b.disabled = locked || value > game.money;
-      });
+      betInput.min = betLimits.min;
+      betInput.max = betCeiling();
+      betInput.value = game.bet;
+      betInput.disabled = locked;
+      betValueEl.textContent = usd(game.bet);
+      showChips(game.bet);
       diceTypesEl.querySelectorAll('button').forEach(b => {
         b.classList.toggle('active', b.dataset.type === game.dieType);
         b.disabled = locked;
+        b.querySelector('.swatch').style.background = diceColors[b.dataset.type];
       });
+      penaltyTypesEl.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('active', b.dataset.type === game.penaltyType);
+        b.disabled = locked;
+      });
+      difficultiesEl.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('active', b.dataset.difficulty === game.difficulty);
+        b.disabled = locked;
+      });
+      difficultyInfoEl.textContent = `Target ${formatRange(targetRange())} with ${game.dieType}s · harder pays more`;
+      diceCountEl.textContent = game.diceCount;
+      countMinusBtn.disabled = locked || game.diceCount <= diceCountLimits.min;
+      countPlusBtn.disabled = locked || game.diceCount >= diceCountLimits.max;
       penCountEl.textContent = game.penalty;
       penMinusBtn.disabled = locked || game.penalty === 0;
       penPlusBtn.disabled = locked || game.penalty === MAX_PENALTY;
       explodeInput.checked = game.exploding;
       explodeInput.disabled = locked || (!game.exploding && upfrontCost() + explodeCost() > game.money);
-      explodeCostEl.textContent = `+$${explodeCost()}`;
+      explodeCostEl.textContent = `+${usd(explodeCost())}`;
+      rerollCountEl.textContent = game.rerolls;
+      rerollMinusBtn.disabled = locked || game.rerolls === 0;
+      rerollPlusBtn.disabled = locked || game.rerolls === MAX_REROLLS ||
+        upfrontCost() + rerollPrice(game.rerolls) > game.money;
+      rerollInfoEl.textContent = game.rerolls === MAX_REROLLS
+        ? `Max ${MAX_REROLLS} · ${usd(rerollsCost())} total`
+        : `Next one +${usd(rerollPrice(game.rerolls))} · max ${MAX_REROLLS}`;
 
       if (betting) {
         const chance = baseChance();
         const pct = chance > 0 && chance < 0.01 ? '<1' : Math.round(chance * 100);
-        const fee = diceFee() ? ` (incl. $${diceFee()} for ${game.dieType}s)` : '';
+        const fee = diceFee() ? ` (incl. ${usd(diceFee())} for ${game.dieType}s)` : '';
         const reach = chance === 0 ? ' · only exploding dice can reach it' : '';
-        summaryEl.textContent = `Costs $${upfrontCost()}${fee} · ${pct}% base chance${reach} · Win pays $${payout()}`;
+        summaryEl.textContent = `Costs ${usd(upfrontCost())}${fee} · ${pct}% base chance${reach} · Win pays ${usd(payout())}`;
       } else if (game.phase === 'over') {
         summaryEl.textContent = 'Out of money';
       } else {
-        summaryEl.textContent = `Spent $${game.spent} this round · Win pays $${game.payout}`;
+        summaryEl.textContent = `Spent ${usd(game.spent)} this round · Win pays ${usd(game.payout)}`;
       }
 
       renderDebug();
@@ -1099,9 +1529,9 @@
       if (game.phase === 'over') {
         primaryBtn.textContent = 'New game';
         primaryBtn.disabled = false;
-        hintEl.textContent = `Your best so far: $${best}`;
+        hintEl.textContent = `Your best so far: ${usd(best)}`;
       } else if (betting) {
-        primaryBtn.textContent = `Roll · $${upfrontCost()}`;
+        primaryBtn.textContent = `Roll · ${usd(upfrontCost())}`;
         primaryBtn.disabled = busy || upfrontCost() > game.money;
         hintEl.textContent = 'Space to roll · or flick a die to throw it yourself';
       } else if (game.phase === 'rolling') {
@@ -1109,7 +1539,8 @@
         primaryBtn.disabled = true;
       } else {
         const selected = dice.filter(d => d.selected).length;
-        primaryBtn.textContent = `Reroll ${selected || ''} · $${rerollCost()}`.replace('  ', ' ');
+        const left = game.rerolls - game.rerollsUsed;
+        primaryBtn.textContent = `Reroll ${selected || ''} · ${left} left`.replace('  ', ' ');
         primaryBtn.disabled = busy || !selected;
         hintEl.textContent = 'Click dice to select them · or flick a single die to reroll it';
       }
@@ -1117,7 +1548,7 @@
 
     // --- Dragging ---
 
-    const LIFT = 1;            // height a held die floats at
+    const LIFT = DIE_SIZE;     // height a held die floats at
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -LIFT);
@@ -1144,8 +1575,9 @@
       aimAt(e);
       const p = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3());
       if (!p) return null;
-      p.x = THREE.MathUtils.clamp(p.x, -ARENA_W + 0.6, ARENA_W - 0.6);
-      p.z = THREE.MathUtils.clamp(p.z, -ARENA_D + 0.6, ARENA_D - 0.6);
+      const margin = DIE_SIZE + 0.1;
+      p.x = THREE.MathUtils.clamp(p.x, -ARENA_W + margin, ARENA_W - margin);
+      p.z = THREE.MathUtils.clamp(p.z, -ARENA_D + margin, ARENA_D - margin);
       return p;
     }
 
@@ -1244,24 +1676,32 @@
 
     // --- Controls ---
 
-    BETS.forEach(value => {
-      const b = document.createElement('button');
-      b.textContent = `$${value}`;
-      b.dataset.bet = value;
-      b.addEventListener('click', () => {
-        game.bet = value;
-        if (upfrontCost() > game.money) game.exploding = false;
-        render();
-      });
-      betsEl.appendChild(b);
+    betInput.addEventListener('input', () => {
+      game.bet = Number(betInput.value);
+      fitBudget();
+      render();
     });
 
     Object.keys(DIE_TYPES).forEach(key => {
       const b = document.createElement('button');
-      b.textContent = key;
+      b.innerHTML = `<span class="swatch"></span>${key}`;
       b.dataset.type = key;
       b.addEventListener('click', () => setDieType(key));
       diceTypesEl.appendChild(b);
+
+      const p = document.createElement('button');
+      p.textContent = key;
+      p.dataset.type = key;
+      p.addEventListener('click', () => setPenaltyType(key));
+      penaltyTypesEl.appendChild(p);
+    });
+
+    Object.entries(DIFFICULTIES).forEach(([key, { label }]) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.dataset.difficulty = key;
+      b.addEventListener('click', () => setDifficulty(key));
+      difficultiesEl.appendChild(b);
     });
 
     // --- Debug ---
@@ -1291,11 +1731,194 @@
       if (localStorage.getItem(PENALTY_KEY) !== null && Number.isFinite(saved) && saved >= 0) tuning.penaltyScale = saved;
     } catch {}
 
+    const BET_LIMITS_KEY = 'beat-the-target-bet-limits-x100';
+    const betMinInput = $('betMin');
+    const betMaxInput = $('betMax');
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(BET_LIMITS_KEY) || '{}');
+      if (Number.isInteger(saved.min) && Number.isInteger(saved.max) && saved.min >= 1 && saved.min <= saved.max) {
+        betLimits.min = saved.min;
+        betLimits.max = saved.max;
+      }
+    } catch {}
+
+    // Ignore half-typed values; a bad pair (min above max) simply isn't applied
+    function onBetLimitInput() {
+      const min = Number(betMinInput.value);
+      const max = Number(betMaxInput.value);
+      if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || min > max) return;
+      betLimits.min = min;
+      betLimits.max = max;
+      try { localStorage.setItem(BET_LIMITS_KEY, JSON.stringify(betLimits)); } catch {}
+      // A bet already placed stays as it is; the new limits apply from the next round
+      if (game.phase === 'bet') {
+        clampBet();
+        fitBudget();
+      }
+      render();
+    }
+    betMinInput.addEventListener('input', onBetLimitInput);
+    betMaxInput.addEventListener('input', onBetLimitInput);
+
+    const COUNT_LIMITS_KEY = 'beat-the-target-dice-count-limits';
+    const countMinInput = $('countMin');
+    const countMaxInput = $('countMax');
+    const validCountLimits = (min, max) =>
+      Number.isInteger(min) && Number.isInteger(max) && min >= 1 && min <= max && max <= DICE_COUNT_CAP;
+
+    // Loaded before the first dice are laid out
+    try {
+      const saved = JSON.parse(localStorage.getItem(COUNT_LIMITS_KEY) || '{}');
+      if (validCountLimits(saved.min, saved.max)) Object.assign(diceCountLimits, { min: saved.min, max: saved.max });
+    } catch {}
+    game.diceCount = clampDiceCount(game.diceCount);
+
+    // Ignore half-typed values; a bad pair (min above max, or outside 1–20) simply isn't applied
+    function onCountLimitInput() {
+      const min = Number(countMinInput.value);
+      const max = Number(countMaxInput.value);
+      if (!validCountLimits(min, max)) return;
+      Object.assign(diceCountLimits, { min, max });
+      try { localStorage.setItem(COUNT_LIMITS_KEY, JSON.stringify(diceCountLimits)); } catch {}
+      // Dice already paid for stay as they are; the new limits apply from the next round
+      if (game.phase === 'bet' && clampDiceCount(game.diceCount) !== game.diceCount) setDiceCount(game.diceCount);
+      else render();
+    }
+    countMinInput.addEventListener('input', onCountLimitInput);
+    countMaxInput.addEventListener('input', onCountLimitInput);
+
+    const DIFFICULTIES_KEY = 'beat-the-target-difficulties';
+    const DEFAULT_DIFFICULTIES = Object.fromEntries(
+      Object.entries(DIFFICULTIES).map(([key, d]) => [key, { from: d.from, to: d.to }])
+    );
+    const difficultyInputs = {};
+    const validBand = (from, to) => Number.isFinite(from) && Number.isFinite(to) && from >= 0 && from <= to && to <= 1;
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(DIFFICULTIES_KEY) || '{}');
+      Object.entries(saved).forEach(([key, band]) => {
+        if (DIFFICULTIES[key] && band && validBand(band.from, band.to)) {
+          Object.assign(DIFFICULTIES[key], { from: band.from, to: band.to });
+        }
+      });
+    } catch {}
+
+    function saveDifficulties() {
+      const bands = Object.fromEntries(Object.entries(DIFFICULTIES).map(([key, d]) => [key, { from: d.from, to: d.to }]));
+      try { localStorage.setItem(DIFFICULTIES_KEY, JSON.stringify(bands)); } catch {}
+    }
+
+    Object.entries(DIFFICULTIES).forEach(([key, { label }]) => {
+      const row = document.createElement('div');
+      row.className = 'debug-row';
+      row.innerHTML = `<span>${label}</span>
+        <span><input type="number" min="0" max="100" step="5"> – <input type="number" min="0" max="100" step="5"> %
+        <span class="debug-amount"></span></span>`;
+      const [fromInput, toInput] = row.querySelectorAll('input');
+
+      // Ignore half-typed values; a bad pair (from above to, or outside 0–100) simply isn't applied
+      const onInput = () => {
+        const from = Number(fromInput.value) / 100;
+        const to = Number(toInput.value) / 100;
+        if (fromInput.value === '' || toInput.value === '' || !validBand(from, to)) return;
+        Object.assign(DIFFICULTIES[key], { from, to });
+        saveDifficulties();
+        // A round already paid for keeps its target
+        if (game.phase === 'bet') updateTarget();
+        render();
+      };
+      fromInput.addEventListener('input', onInput);
+      toInput.addEventListener('input', onInput);
+
+      difficultyInputs[key] = { fromInput, toInput, amount: row.querySelector('.debug-amount') };
+      $('debugDifficulties').appendChild(row);
+    });
+
+    const COLORS_KEY = 'beat-the-target-dice-colors';
+    const colorInputs = {};
+    const validColor = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+
+    // Loaded before the first dice are made, so their textures start in the saved colours
+    try {
+      const saved = JSON.parse(localStorage.getItem(COLORS_KEY) || '{}');
+      Object.entries(saved).forEach(([key, color]) => {
+        if (DIE_TYPES[key] && validColor(color)) diceColors[key] = color;
+      });
+    } catch {}
+
+    Object.keys(DIE_TYPES).forEach(key => {
+      const row = document.createElement('label');
+      row.className = 'debug-row';
+      row.innerHTML = `<span>${key}</span><span><input type="color"> <span class="debug-amount"></span></span>`;
+      const input = row.querySelector('input');
+      input.addEventListener('input', () => {
+        setDiceColor(key, input.value);
+        try { localStorage.setItem(COLORS_KEY, JSON.stringify(diceColors)); } catch {}
+      });
+      colorInputs[key] = { input, amount: row.querySelector('.debug-amount') };
+      $('debugColors').appendChild(row);
+    });
+
+    const CHIPS_KEY = 'beat-the-target-chips-x100';
+    const chipInputs = [];
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(CHIPS_KEY) || '[]');
+      saved.slice(0, chips.length).forEach((chip, i) => {
+        if (Number.isInteger(chip.value) && chip.value >= 1 && validColor(chip.color)) Object.assign(chips[i], chip);
+      });
+    } catch {}
+
+    const saveChips = () => {
+      try { localStorage.setItem(CHIPS_KEY, JSON.stringify(chips.map(({ value, color }) => ({ value, color })))); } catch {}
+    };
+
+    chips.forEach((chip, i) => {
+      const row = document.createElement('div');
+      row.className = 'debug-row';
+      row.innerHTML = `<span>Chip ${i + 1}</span>
+        <span>$ <input type="number" min="1" step="100" aria-label="Chip ${i + 1} value">
+        <input type="color" aria-label="Chip ${i + 1} colour"></span>`;
+      const [valueInput, colorInput] = row.querySelectorAll('input');
+      const onInput = () => {
+        const value = Number(valueInput.value);
+        if (!Number.isInteger(value) || value < 1) return;
+        setChip(i, value, colorInput.value);
+        saveChips();
+      };
+      valueInput.addEventListener('input', onInput);
+      colorInput.addEventListener('input', onInput);
+      chipInputs.push({ valueInput, colorInput });
+      $('debugChips').appendChild(row);
+    });
+
     function renderDebug() {
+      chipInputs.forEach(({ valueInput, colorInput }, i) => {
+        if (document.activeElement !== valueInput) valueInput.value = chips[i].value;
+        if (document.activeElement !== colorInput) colorInput.value = chips[i].color;
+      });
+
+      Object.entries(colorInputs).forEach(([key, { input, amount }]) => {
+        if (document.activeElement !== input) input.value = diceColors[key];
+        amount.textContent = diceColors[key];
+      });
+
+      Object.entries(difficultyInputs).forEach(([key, { fromInput, toInput, amount }]) => {
+        if (document.activeElement !== fromInput) fromInput.value = Math.round(DIFFICULTIES[key].from * 100);
+        if (document.activeElement !== toInput) toInput.value = Math.round(DIFFICULTIES[key].to * 100);
+        amount.textContent = `= ${formatRange(targetRange(key))} on ${game.dieType}s`;
+      });
+
+      if (document.activeElement !== countMinInput) countMinInput.value = diceCountLimits.min;
+      if (document.activeElement !== countMaxInput) countMaxInput.value = diceCountLimits.max;
+      if (document.activeElement !== betMinInput) betMinInput.value = betLimits.min;
+      if (document.activeElement !== betMaxInput) betMaxInput.value = betLimits.max;
+
       // Don't overwrite a field while it's being typed in
       Object.entries(feeInputs).forEach(([key, { input, amount }]) => {
         if (document.activeElement !== input) input.value = Math.round(DIE_TYPES[key].fee * 100);
-        amount.textContent = `= $${priceOf(DIE_TYPES[key].fee)} at a $${game.bet} bet`;
+        amount.textContent = `= ${usd(priceOf(DIE_TYPES[key].fee))} at a ${usd(game.bet)} bet`;
       });
 
       if (document.activeElement !== penaltyScaleInput) penaltyScaleInput.value = Math.round(tuning.penaltyScale * 100);
@@ -1314,7 +1937,7 @@
     Object.keys(DIE_TYPES).forEach(key => {
       const row = document.createElement('label');
       row.className = 'debug-row';
-      row.innerHTML = `<span>${key} cost</span>
+      row.innerHTML = `<span>${key}</span>
         <span><input type="number" min="0" step="5"> % of bet <span class="debug-amount"></span></span>`;
       const input = row.querySelector('input');
       input.addEventListener('input', () => {
@@ -1331,15 +1954,37 @@
     $('debugReset').addEventListener('click', () => {
       Object.entries(DEFAULT_FEES).forEach(([key, fee]) => { DIE_TYPES[key].fee = fee; });
       tuning.penaltyScale = 1;
+      Object.assign(betLimits, DEFAULT_BET_LIMITS);
+      Object.entries(DEFAULT_DIFFICULTIES).forEach(([key, band]) => Object.assign(DIFFICULTIES[key], band));
       try {
         localStorage.removeItem(FEES_KEY);
         localStorage.removeItem(PENALTY_KEY);
+        localStorage.removeItem(BET_LIMITS_KEY);
+        localStorage.removeItem(DIFFICULTIES_KEY);
+        localStorage.removeItem(COLORS_KEY);
+        localStorage.removeItem(COUNT_LIMITS_KEY);
+        localStorage.removeItem(CHIPS_KEY);
       } catch {}
+      DEFAULT_CHIPS.forEach(({ value, color }, i) => setChip(i, value, color));
+      Object.assign(diceCountLimits, DEFAULT_DICE_COUNT_LIMITS);
+      if (game.phase === 'bet' && clampDiceCount(game.diceCount) !== game.diceCount) setDiceCount(game.diceCount);
+      Object.entries(DEFAULT_DICE_COLORS).forEach(([key, color]) => {
+        if (diceColors[key] !== color) setDiceColor(key, color);
+      });
+      if (game.phase === 'bet') {
+        clampBet();
+        fitBudget();
+        updateTarget();
+      }
       render();
     });
 
+    countMinusBtn.addEventListener('click', () => setDiceCount(game.diceCount - 1));
+    countPlusBtn.addEventListener('click', () => setDiceCount(game.diceCount + 1));
     penMinusBtn.addEventListener('click', () => setPenalty(game.penalty - 1));
     penPlusBtn.addEventListener('click', () => setPenalty(game.penalty + 1));
+    rerollMinusBtn.addEventListener('click', () => { game.rerolls--; render(); });
+    rerollPlusBtn.addEventListener('click', () => { game.rerolls++; render(); });
     explodeInput.addEventListener('change', () => {
       game.exploding = explodeInput.checked;
       render();
@@ -1355,7 +2000,9 @@
     });
 
     document.addEventListener('keydown', e => {
-      if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+      // Space still rolls after using the bet slider, but not while typing in a field
+      const typing = e.target.tagName === 'INPUT' && e.target.type !== 'range';
+      if (e.code === 'Space' && !typing) {
         e.preventDefault();
         if (!primaryBtn.disabled) primaryBtn.click();
       }
@@ -1367,6 +2014,10 @@
       const { clientWidth: w, clientHeight: h } = tableEl;
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
+      // Back the camera off when the view is too narrow to fit the tray and the chips
+      const fit = VIEW_HALF_WIDTH / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+      camera.position.copy(CAMERA_POS).setLength(Math.max(CAMERA_POS.length(), fit));
+      camera.lookAt(0, 0, 0.2);
       camera.updateProjectionMatrix();
     }
 
