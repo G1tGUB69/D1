@@ -575,6 +575,32 @@
         <span>Payout raise</span>
         <span><input type="number" id="penaltyScale" min="0" step="10"> % <span class="debug-amount" id="penaltyAmount"></span></span>
       </label>
+      <label class="debug-row">
+        <span>Max penalty dice</span>
+        <span><input type="number" id="penaltyMax" min="0" max="10" step="1"></span>
+      </label>
+    </details>
+
+    <details class="debug-group">
+      <summary>8. Tray size</summary>
+      <p class="debug-note">Inside of the tray in d6 widths: a base size plus extra for each die on it (regular and penalty dice)</p>
+      <label class="debug-row">
+        <span>Base width</span>
+        <span><input type="number" id="trayWidth" min="2" step="0.5"></span>
+      </label>
+      <label class="debug-row">
+        <span>Width per die</span>
+        <span>+ <input type="number" id="trayWidthPerDie" min="0" step="0.25"></span>
+      </label>
+      <label class="debug-row">
+        <span>Base depth</span>
+        <span><input type="number" id="trayDepth" min="2" step="0.5"></span>
+      </label>
+      <label class="debug-row">
+        <span>Depth per die</span>
+        <span>+ <input type="number" id="trayDepthPerDie" min="0" step="0.25"></span>
+      </label>
+      <p class="debug-note" id="trayAmount"></p>
     </details>
 
     <button id="debugReset" class="secondary">Reset debug settings</button>
@@ -610,7 +636,9 @@
       hard:     { label: 'Hard',      from: 0.55, to: 0.75 },
       veryHard: { label: 'Very hard', from: 0.75, to: 1 }
     };
-    const MAX_PENALTY = 2;
+    const DEFAULT_MAX_PENALTY = 2;
+    const PENALTY_CAP = 10;      // hard ceiling for the debug setting
+    const penaltyLimit = { max: DEFAULT_MAX_PENALTY };   // adjustable in the debug menu
     const MAX_REROLLS = 3;
     const MAX_BONUS_DICE = 6;    // cap on dice added by explosions in one round
     const HOUSE_RETURN = 0.95;   // payouts return 95% of fair odds
@@ -639,10 +667,19 @@
       { dir: new THREE.Vector3( 0, 0,-1), value: 4 }
     ];
 
-    // Arena half-extents (world units)
-    const ARENA_W = 3;
-    const ARENA_D = 2;
     const DIE_SIZE = 0.5;      // edge of a d6; the other dice are scaled to match
+
+    // Inside of the tray, in d6 widths: a base size plus a little more for each die on it
+    // (regular and penalty dice). Adjustable in the debug menu.
+    const DEFAULT_TRAY_SIZING = { width: 8, widthPerDie: 1, depth: 6, depthPerDie: 0.5 };
+    const traySizing = { ...DEFAULT_TRAY_SIZING };
+    const traySizeFor = n => ({
+      w: traySizing.width + traySizing.widthPerDie * n,
+      d: traySizing.depth + traySizing.depthPerDie * n
+    });
+
+    // Arena half-extents (world units), set from the tray size by fitTray()
+    const arena = { w: 3, d: 2 };
 
     const $ = id => document.getElementById(id);
     const tableEl = $('table');
@@ -712,9 +749,10 @@
     // Tilted view so the tray's rim and depth read as 3D
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
     const CAMERA_POS = new THREE.Vector3(0, 9, 8);
-    const VIEW_HALF_WIDTH = 5.3;   // tray plus the chips beside it, kept in view on narrow screens
+    const CAMERA_TARGET = new THREE.Vector3(0, 0, 0.6);   // a little forward, so the chips in front stay in view
+    const VIEW_HALF_WIDTH = 4;   // tray width with a margin, kept in view on narrow screens
     camera.position.copy(CAMERA_POS);
-    camera.lookAt(0, 0, 0.2);
+    camera.lookAt(CAMERA_TARGET);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x8890a0, 1.6));
     const sun = new THREE.DirectionalLight(0xffffff, 1.8);
@@ -726,7 +764,7 @@
 
     // Invisible floor around the tray that only shows shadows, so the CSS table colour shows through
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(20, 20),
+      new THREE.PlaneGeometry(40, 40),
       new THREE.ShadowMaterial({ opacity: 0.22 })
     );
     floor.rotation.x = -Math.PI / 2;
@@ -740,21 +778,13 @@
 
     // The tray hangs off a pivot on its back edge, so it can be flipped over backwards
     const trayPivot = new THREE.Group();
-    trayPivot.position.z = -ARENA_D - RIM_WIDTH;
     scene.add(trayPivot);
     const tray = new THREE.Group();
-    tray.position.z = ARENA_D + RIM_WIDTH;
     trayPivot.add(tray);
 
-    const felt = new THREE.Mesh(
-      new THREE.PlaneGeometry(ARENA_W * 2, ARENA_D * 2),
-      new THREE.MeshStandardMaterial({ color: 0x1f6b47, roughness: 1 })
-    );
-    felt.rotation.x = -Math.PI / 2;
-    felt.receiveShadow = true;
-    tray.add(felt);
-
+    const feltMat = new THREE.MeshStandardMaterial({ color: 0x1f6b47, roughness: 1 });
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x7a4b2a, roughness: 0.6 });
+
     function addRim(width, depth, x, z) {
       const rim = new THREE.Mesh(new RoundedBoxGeometry(width, RIM_HEIGHT, depth, 3, 0.08), woodMat);
       rim.position.set(x, RIM_HEIGHT / 2, z);
@@ -762,11 +792,26 @@
       rim.receiveShadow = true;
       tray.add(rim);
     }
-    const outerW = ARENA_W * 2 + RIM_WIDTH * 2;
-    addRim(outerW, RIM_WIDTH, 0, -ARENA_D - RIM_WIDTH / 2);           // back
-    addRim(outerW, RIM_WIDTH, 0, ARENA_D + RIM_WIDTH / 2);            // front
-    addRim(RIM_WIDTH, ARENA_D * 2, -ARENA_W - RIM_WIDTH / 2, 0);      // left
-    addRim(RIM_WIDTH, ARENA_D * 2, ARENA_W + RIM_WIDTH / 2, 0);       // right
+
+    // Felt and rim around the current arena, with the pivot on its back edge
+    function buildTray() {
+      tray.children.forEach(mesh => mesh.geometry.dispose());
+      tray.clear();
+      trayPivot.position.z = -arena.d - RIM_WIDTH;
+      tray.position.z = arena.d + RIM_WIDTH;
+
+      const felt = new THREE.Mesh(new THREE.PlaneGeometry(arena.w * 2, arena.d * 2), feltMat);
+      felt.rotation.x = -Math.PI / 2;
+      felt.receiveShadow = true;
+      tray.add(felt);
+
+      const outerW = arena.w * 2 + RIM_WIDTH * 2;
+      addRim(outerW, RIM_WIDTH, 0, -arena.d - RIM_WIDTH / 2);           // back
+      addRim(outerW, RIM_WIDTH, 0, arena.d + RIM_WIDTH / 2);            // front
+      addRim(RIM_WIDTH, arena.d * 2, -arena.w - RIM_WIDTH / 2, 0);      // left
+      addRim(RIM_WIDTH, arena.d * 2, arena.w + RIM_WIDTH / 2, 0);       // right
+    }
+    buildTray();
 
     // --- Bet chips, stacked beside the tray ---
 
@@ -842,32 +887,44 @@
 
     const chipGeo = new THREE.CylinderGeometry(CHIP_RADIUS, CHIP_RADIUS, CHIP_HEIGHT, 32);
     const chipGroup = new THREE.Group();
-    chipGroup.position.set(ARENA_W + RIM_WIDTH + 0.85, 0, 0);
+    const CHIP_GAP = 0.65;   // from the tray's front rim
+    chipGroup.position.set(0, 0, arena.d + RIM_WIDTH + CHIP_GAP);   // in front of the tray
     scene.add(chipGroup);
     let chipsShown = null;
 
-    // Split the amount into the biggest chips first, in stacks of up to 10, two stacks per row.
+    const CHIP_SPACING = 0.8;
+    const CHIP_ROW_MAX = 8;   // stacks that fit across the front of the tray
+
+    // Split the amount into the biggest chips first, in stacks of up to 10, side by side in one row.
+    // Big bets that would need more stacks than fit make the stacks taller instead.
     // Anything smaller than the smallest chip isn't shown.
     function showChips(amount) {
       if (amount === chipsShown) return;
       chipsShown = amount;
       chipGroup.clear();   // meshes share the geometry and materials, nothing to dispose
 
-      const stacks = [];
+      const counts = [];
       let rest = amount;
       [...chips].sort((a, b) => b.value - a.value).forEach(chip => {
-        let count = Math.floor(rest / chip.value);
+        const count = Math.floor(rest / chip.value);
         rest -= count * chip.value;
-        for (; count > 0; count -= CHIP_STACK_MAX) stacks.push({ chip, count: Math.min(count, CHIP_STACK_MAX) });
+        if (count) counts.push({ chip, count });
       });
 
-      const rows = Math.ceil(stacks.length / 2);
+      let stackMax = CHIP_STACK_MAX;
+      const stackCount = () => counts.reduce((n, { count }) => n + Math.ceil(count / stackMax), 0);
+      while (stackCount() > CHIP_ROW_MAX) stackMax += 5;
+
+      const stacks = [];
+      counts.forEach(({ chip, count }) => {
+        for (; count > 0; count -= stackMax) stacks.push({ chip, count: Math.min(count, stackMax) });
+      });
+
       stacks.forEach(({ chip, count }, i) => {
-        const x = stacks.length === 1 ? 0 : (i % 2 ? 0.4 : -0.4);
-        const z = (Math.floor(i / 2) - (rows - 1) / 2) * 0.8;
+        const x = (i - (stacks.length - 1) / 2) * CHIP_SPACING;
         for (let j = 0; j < count; j++) {
           const mesh = new THREE.Mesh(chipGeo, chipMaterials(chip));
-          mesh.position.set(x + rand(-0.02, 0.02), CHIP_HEIGHT * (j + 0.5), z + rand(-0.02, 0.02));
+          mesh.position.set(x + rand(-0.02, 0.02), CHIP_HEIGHT * (j + 0.5), rand(-0.02, 0.02));
           mesh.rotation.y = rand(0, Math.PI * 2);
           mesh.castShadow = true;
           mesh.receiveShadow = true;
@@ -1129,10 +1186,10 @@
     addPlane([0, 0, 0], [-Math.PI / 2, 0, 0]);          // floor
     // The tray's walls, taken away while the table is flipped
     const walls = [
-      addPlane([-ARENA_W, 0, 0], [0, Math.PI / 2, 0]),  // left
-      addPlane([ARENA_W, 0, 0], [0, -Math.PI / 2, 0]),  // right
-      addPlane([0, 0, -ARENA_D], [0, 0, 0]),            // back
-      addPlane([0, 0, ARENA_D], [0, Math.PI, 0])        // front
+      addPlane([-arena.w, 0, 0], [0, Math.PI / 2, 0]),  // left
+      addPlane([arena.w, 0, 0], [0, -Math.PI / 2, 0]),  // right
+      addPlane([0, 0, -arena.d], [0, 0, 0]),            // back
+      addPlane([0, 0, arena.d], [0, Math.PI, 0])        // front
     ];
 
     // --- Dice ---
@@ -1214,13 +1271,44 @@
       return { value, flat: -bottom };
     }
 
-    // The regular dice plus any penalty dice, dropped in rows of up to 8
+    // Resize the tray for the dice on it: felt, rim, walls, chips, shadows and camera follow.
+    // Dice left outside a shrunk tray are pulled back in.
+    function fitTray() {
+      if (flipped) return;   // the dice are flying off; restoring the table lays them out again
+      const size = traySizeFor(game.diceCount + game.penalty);
+      const w = size.w * DIE_SIZE / 2;
+      const d = size.d * DIE_SIZE / 2;
+      if (w === arena.w && d === arena.d) return;
+      arena.w = w;
+      arena.d = d;
+
+      buildTray();
+      walls[0].position.set(-w, 0, 0);
+      walls[1].position.set(w, 0, 0);
+      walls[2].position.set(0, 0, -d);
+      walls[3].position.set(0, 0, d);
+      chipGroup.position.z = d + RIM_WIDTH + CHIP_GAP;
+
+      const reach = Math.max(w, d) + 3;
+      Object.assign(sun.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach });
+      sun.shadow.camera.updateProjectionMatrix();
+
+      dice.forEach(({ body }) => {
+        body.position.x = THREE.MathUtils.clamp(body.position.x, -w + DIE_SIZE, w - DIE_SIZE);
+        body.position.z = THREE.MathUtils.clamp(body.position.z, -d + DIE_SIZE, d - DIE_SIZE);
+        body.wakeUp();
+      });
+      frameCamera();
+    }
+
+    // The regular dice plus any penalty dice, dropped in rows of up to 8 (fewer if the tray is narrow)
     function layoutDice() {
       [...dice].forEach(removeDie);
+      fitTray();
       const kinds = [...Array(game.diceCount).fill('normal'), ...Array(game.penalty).fill('penalty')];
-      const perRow = 8;
-      const rows = Math.ceil(kinds.length / perRow);
       const gap = DIE_SIZE * 1.4;
+      const perRow = Math.max(1, Math.min(8, Math.floor((arena.w * 2 - DIE_SIZE) / gap)));
+      const rows = Math.ceil(kinds.length / perRow);
       kinds.forEach((kind, i) => {
         const row = Math.floor(i / perRow);
         const inRow = Math.min(perRow, kinds.length - row * perRow);
@@ -1268,7 +1356,8 @@
     }
 
     function spawnBonusDie() {
-      const { body } = addDie('bonus', rand(-1.5, 1.5), 2.5, ARENA_D - 0.8);
+      const spread = Math.min(1.5, arena.w - DIE_SIZE);
+      const { body } = addDie('bonus', rand(-spread, spread), 2.5, arena.d - DIE_SIZE * 1.5);
       body.velocity.set(rand(-2, 2), 3, -6);
       body.angularVelocity.set(rand(-15, 15), rand(-15, 15), rand(-15, 15));
     }
@@ -1432,6 +1521,7 @@
       const penaltyDice = () => dice.filter(d => d.kind === 'penalty');
       while (penaltyDice().length < n) addDie('penalty', rand(-2, 2), 2, rand(-1, 1));
       while (penaltyDice().length > n) removeDie(penaltyDice().pop());
+      fitTray();
       render();
     }
 
@@ -1530,6 +1620,7 @@
         game.phase = 'bet';
         clampBet();
         fitBudget();
+        fitTray();   // picks up a tray size changed in the debug menu mid-round
         breakdownEl.textContent = `${message} New target: ${game.target}. Place your bet.`.trim();
       }
       render();
@@ -1579,7 +1670,7 @@
       countPlusBtn.disabled = locked || game.diceCount >= diceCountLimits.max;
       penCountEl.textContent = game.penalty;
       penMinusBtn.disabled = locked || game.penalty === 0;
-      penPlusBtn.disabled = locked || game.penalty === MAX_PENALTY;
+      penPlusBtn.disabled = locked || game.penalty >= penaltyLimit.max;
       explodeInput.checked = game.exploding;
       explodeInput.disabled = locked || (!game.exploding && upfrontCost() + explodeCost() > game.money);
       explodeCostEl.textContent = `+${usd(explodeCost())}`;
@@ -1664,8 +1755,8 @@
       const p = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3());
       if (!p) return null;
       const margin = DIE_SIZE + 0.1;
-      p.x = THREE.MathUtils.clamp(p.x, -ARENA_W + margin, ARENA_W - margin);
-      p.z = THREE.MathUtils.clamp(p.z, -ARENA_D + margin, ARENA_D - margin);
+      p.x = THREE.MathUtils.clamp(p.x, -arena.w + margin, arena.w - margin);
+      p.z = THREE.MathUtils.clamp(p.z, -arena.d + margin, arena.d - margin);
       return p;
     }
 
@@ -1963,6 +2054,35 @@
     countMinInput.addEventListener('input', onCountLimitInput);
     countMaxInput.addEventListener('input', onCountLimitInput);
 
+    const TRAY_KEY = 'beat-the-target-tray-size';
+    const trayInputs = {
+      width: $('trayWidth'),
+      widthPerDie: $('trayWidthPerDie'),
+      depth: $('trayDepth'),
+      depthPerDie: $('trayDepthPerDie')
+    };
+    const trayAmountEl = $('trayAmount');
+    const validTraySizing = s => Object.keys(DEFAULT_TRAY_SIZING).every(k => Number.isFinite(s[k])) &&
+      s.width >= 2 && s.depth >= 2 && s.widthPerDie >= 0 && s.depthPerDie >= 0;
+
+    // Loaded before the first dice are laid out
+    try {
+      const saved = JSON.parse(localStorage.getItem(TRAY_KEY) || '{}');
+      if (validTraySizing(saved)) Object.keys(DEFAULT_TRAY_SIZING).forEach(k => { traySizing[k] = saved[k]; });
+    } catch {}
+
+    // Ignore half-typed values. Dice already thrown stay put; the new size applies from the next round.
+    function onTrayInput() {
+      const next = Object.fromEntries(Object.entries(trayInputs).map(([k, input]) =>
+        [k, input.value === '' ? NaN : Number(input.value)]));
+      if (!validTraySizing(next)) return;
+      Object.assign(traySizing, next);
+      try { localStorage.setItem(TRAY_KEY, JSON.stringify(traySizing)); } catch {}
+      if (game.phase === 'bet') fitTray();
+      render();
+    }
+    Object.values(trayInputs).forEach(input => input.addEventListener('input', onTrayInput));
+
     const DIFFICULTIES_KEY = 'beat-the-target-difficulties';
     const DEFAULT_DIFFICULTIES = Object.fromEntries(
       Object.entries(DIFFICULTIES).map(([key, d]) => [key, { from: d.from, to: d.to }])
@@ -2085,6 +2205,14 @@
         amount.textContent = `= ${formatRange(targetRange(key))} on ${game.dieType}s`;
       });
 
+      Object.entries(trayInputs).forEach(([k, input]) => {
+        if (document.activeElement !== input) input.value = traySizing[k];
+      });
+      const onTable = game.diceCount + game.penalty;
+      const traySize = traySizeFor(onTable);
+      const round1 = n => Math.round(n * 10) / 10;
+      trayAmountEl.textContent = `= ${round1(traySize.w)} × ${round1(traySize.d)} with ${onTable} dice on the table`;
+
       if (document.activeElement !== countMinInput) countMinInput.value = diceCountLimits.min;
       if (document.activeElement !== countMaxInput) countMaxInput.value = diceCountLimits.max;
       if (document.activeElement !== betMinInput) betMinInput.value = betLimits.min;
@@ -2097,8 +2225,9 @@
       });
 
       if (document.activeElement !== penaltyScaleInput) penaltyScaleInput.value = Math.round(tuning.penaltyScale * 100);
-      const extra = payoutWith(MAX_PENALTY) - payoutWith(0);
-      penaltyAmountEl.textContent = `= ${dollars(extra)} with ${MAX_PENALTY} red dice now`;
+      const extra = payoutWith(penaltyLimit.max) - payoutWith(0);
+      penaltyAmountEl.textContent = `= ${dollars(extra)} with ${penaltyLimit.max} red dice now`;
+      if (document.activeElement !== penaltyMaxInput) penaltyMaxInput.value = penaltyLimit.max;
     }
 
     penaltyScaleInput.addEventListener('input', () => {
@@ -2107,6 +2236,26 @@
       tuning.penaltyScale = pct / 100;
       try { localStorage.setItem(PENALTY_KEY, tuning.penaltyScale); } catch {}
       render();
+    });
+
+    const PENALTY_MAX_KEY = 'beat-the-target-max-penalty';
+    const penaltyMaxInput = $('penaltyMax');
+    const validPenaltyMax = n => Number.isInteger(n) && n >= 0 && n <= PENALTY_CAP;
+
+    try {
+      const saved = localStorage.getItem(PENALTY_MAX_KEY);
+      if (saved !== null && validPenaltyMax(Number(saved))) penaltyLimit.max = Number(saved);
+    } catch {}
+    game.penalty = Math.min(game.penalty, penaltyLimit.max);
+
+    // Penalty dice already paid for stay; above the new max they're removed while betting
+    penaltyMaxInput.addEventListener('input', () => {
+      const max = Number(penaltyMaxInput.value);
+      if (penaltyMaxInput.value === '' || !validPenaltyMax(max)) return;
+      penaltyLimit.max = max;
+      try { localStorage.setItem(PENALTY_MAX_KEY, max); } catch {}
+      if (game.phase === 'bet' && game.penalty > max) setPenalty(max);
+      else render();
     });
 
     Object.keys(DIE_TYPES).forEach(key => {
@@ -2129,16 +2278,22 @@
     $('debugReset').addEventListener('click', () => {
       Object.entries(DEFAULT_FEES).forEach(([key, fee]) => { DIE_TYPES[key].fee = fee; });
       tuning.penaltyScale = 1;
+      penaltyLimit.max = DEFAULT_MAX_PENALTY;
+      if (game.phase === 'bet' && game.penalty > penaltyLimit.max) setPenalty(penaltyLimit.max);
       Object.assign(betLimits, DEFAULT_BET_LIMITS);
+      Object.assign(traySizing, DEFAULT_TRAY_SIZING);
+      if (game.phase === 'bet') fitTray();
       Object.entries(DEFAULT_DIFFICULTIES).forEach(([key, band]) => Object.assign(DIFFICULTIES[key], band));
       try {
         localStorage.removeItem(FEES_KEY);
         localStorage.removeItem(PENALTY_KEY);
+        localStorage.removeItem(PENALTY_MAX_KEY);
         localStorage.removeItem(BET_LIMITS_KEY);
         localStorage.removeItem(DIFFICULTIES_KEY);
         localStorage.removeItem(COLORS_KEY);
         localStorage.removeItem(COUNT_LIMITS_KEY);
         localStorage.removeItem(CHIPS_KEY);
+        localStorage.removeItem(TRAY_KEY);
       } catch {}
       DEFAULT_CHIPS.forEach(({ value, color }, i) => setChip(i, value, color));
       Object.assign(diceCountLimits, DEFAULT_DICE_COUNT_LIMITS);
@@ -2188,15 +2343,22 @@
 
     // --- Loop ---
 
+    // Frame the tray and the chips in front of it. The view was tuned for a 6 × 4 tray (scale 1);
+    // other sizes scale the camera setup, and it backs off further when the view is too narrow.
+    function frameCamera() {
+      const scale = Math.max(0.7, arena.w / 3, (arena.d + 1.4) / 3.4);
+      const fit = VIEW_HALF_WIDTH * scale / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+      camera.position.copy(CAMERA_POS).multiplyScalar(scale);
+      camera.position.setLength(Math.max(camera.position.length(), fit));
+      camera.lookAt(CAMERA_TARGET.clone().multiplyScalar(scale));
+      camera.updateProjectionMatrix();
+    }
+
     function resize() {
       const { clientWidth: w, clientHeight: h } = tableEl;
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
-      // Back the camera off when the view is too narrow to fit the tray and the chips
-      const fit = VIEW_HALF_WIDTH / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
-      camera.position.copy(CAMERA_POS).setLength(Math.max(CAMERA_POS.length(), fit));
-      camera.lookAt(0, 0, 0.2);
-      camera.updateProjectionMatrix();
+      frameCamera();
     }
 
     let last = performance.now();
