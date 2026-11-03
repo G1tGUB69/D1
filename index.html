@@ -414,7 +414,7 @@
   <main class="card">
     <h1>Beat the Target</h1>
     <div class="scroll">
-    <p class="rules">Pick a difficulty, bet, choose your dice and how many, then roll them. Reach the target or higher to win. Buy up to 3 rerolls and exploding dice, or add penalty dice for a bigger payout. Play solo, or take turns with a second player: the first to go broke loses.</p>
+    <p class="rules">Pick a difficulty, bet, choose your dice and how many, then roll them. Reach the target or higher to win. Buy up to 3 rerolls and exploding dice, or add penalty dice for a bigger payout. Play solo, or take turns with a second player: beat the target to roll again or pass, miss it and the table moves on. The first to go broke loses.</p>
 
     <div class="columns">
     <div class="column">
@@ -1403,6 +1403,7 @@
     ];
     let playerCount = 1;
     let turn = 0;          // index of the player at the table
+    let mayPass = false;   // after a win in 2-player mode: roll again or pass the table
     const twoPlayers = () => playerCount === 2;
     const otherPlayer = () => players[1 - turn];
     const turnText = () => (twoPlayers() ? `${players[turn].name}'s turn. ` : '');
@@ -1566,6 +1567,7 @@
         setSelected(d, false);
       });
 
+      mayPass = false;
       game.spent = upfrontCost();
       game.money -= game.spent;
       game.payout = payout();
@@ -1630,9 +1632,18 @@
       }
 
       const message = `${who}${sum} vs ${game.target}: ${win ? `won ${usd(game.payout)}` : 'lost'} (${dollars(net)}).`;
-      // Pass the table on, unless this player is broke and the game is about to end
-      if (twoPlayers() && game.money >= betLimits.min) turn = 1 - turn;
+      // A winner keeps the table and may pass it; a loser hands it over (unless broke and the game ends)
+      mayPass = twoPlayers() && win;
+      if (twoPlayers() && !win && game.money >= betLimits.min) turn = 1 - turn;
       newRound(message);
+    }
+
+    function passTurn() {
+      if (!mayPass || game.phase !== 'bet' || drag || flipped) return;
+      const passer = players[turn].name;
+      mayPass = false;
+      turn = 1 - turn;
+      newRound(`${passer} passed.`);
     }
 
     function newRound(message) {
@@ -1653,7 +1664,8 @@
         clampBet();
         fitBudget();
         fitTray();   // picks up a tray size changed in the debug menu mid-round
-        breakdownEl.textContent = `${message} ${turnText()}New target: ${game.target}. Place your bet.`.trim();
+        const next = mayPass ? `${players[turn].name} can roll again or pass. ` : turnText();
+        breakdownEl.textContent = `${message} ${next}New target: ${game.target}. Place your bet.`.trim();
       }
       render();
     }
@@ -1661,6 +1673,7 @@
     function newGame() {
       players.forEach(p => { p.money = START_MONEY; });
       turn = 0;
+      mayPass = false;
       history.length = 0;
       historyEl.innerHTML = '';
       totalEl.textContent = '–';
@@ -1737,7 +1750,9 @@
 
       renderDebug();
 
-      secondaryBtn.hidden = game.phase !== 'decide';
+      const canPass = betting && mayPass;
+      secondaryBtn.hidden = game.phase !== 'decide' && !canPass;
+      secondaryBtn.textContent = canPass ? `Pass to ${otherPlayer().name}` : 'Take the loss';
       secondaryBtn.disabled = busy;
       flipBtn.hidden = flipped;
       flipBtn.disabled = game.phase === 'rolling' || !!drag || !!trayTween;
@@ -1751,9 +1766,11 @@
         primaryBtn.disabled = false;
         hintEl.textContent = twoPlayers() ? `${otherPlayer().name} wins!` : `Your best so far: ${usd(best)}`;
       } else if (betting) {
-        primaryBtn.textContent = `${twoPlayers() ? `${players[turn].name}: ` : ''}Roll · ${usd(upfrontCost())}`;
+        primaryBtn.textContent = `${twoPlayers() ? `${players[turn].name}: ` : ''}Roll${mayPass ? ' again' : ''} · ${usd(upfrontCost())}`;
         primaryBtn.disabled = busy || upfrontCost() > game.money;
-        hintEl.textContent = `${turnText()}Space to roll · or flick a die to throw it yourself`;
+        hintEl.textContent = mayPass
+          ? `${players[turn].name} won! Roll again, or pass the table to ${otherPlayer().name}`
+          : `${turnText()}Space to roll · or flick a die to throw it yourself`;
       } else if (game.phase === 'rolling') {
         primaryBtn.textContent = 'Rolling…';
         primaryBtn.disabled = true;
@@ -2383,6 +2400,7 @@
     });
     secondaryBtn.addEventListener('click', () => {
       if (game.phase === 'decide' && !drag) resolve(game.result.total, game.result.sum);
+      else if (game.phase === 'bet') passTurn();
     });
 
     document.addEventListener('keydown', e => {
