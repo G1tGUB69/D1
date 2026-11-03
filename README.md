@@ -2,7 +2,9 @@
 
 Nov 3, 2026 · @GUB
 
-## Overview
+<details>
+<summary><b>Overview</b></summary>
+
 
 **Beat the Target** is a 3D dice-betting game: bet money, roll physics-simulated dice, and win if the total reaches the target. It runs in the browser from a single file, `index.html` (Three.js 0.160 for rendering, cannon-es 0.20 for physics).
 
@@ -17,7 +19,11 @@ Nov 3, 2026 · @GUB
 
 `index_gub_roller.html` is a separate, earlier prototype ("Dice Roller") and is not part of this game.
 
-## Core loop
+</details>
+
+<details>
+<summary><b>Core loop</b></summary>
+
 
 Each round moves through four phases: **bet → rolling → decide → resolve**. All costs are paid when the dice are first thrown.
 
@@ -29,7 +35,11 @@ Each round moves through four phases: **bet → rolling → decide → resolve**
 
 The total is the sum of regular and bonus dice minus the sum of penalty dice. The game is over when the active player's money is below the minimum bet.
 
-## Rules, costs and payouts
+</details>
+
+<details>
+<summary><b>Rules, costs and payouts</b></summary>
+
 
 Win = final total ≥ target. The payout is a total return (stake included), priced from the real odds at 95% house return.
 
@@ -85,7 +95,11 @@ If the player can no longer afford the extras (after raising the bet or losing m
 - Solo: the game ends when money drops below the minimum bet. The best money ever reached is saved in the browser.
 - 2 players: when the active player can't cover the minimum bet, the other player wins.
 
-## Special mechanics
+</details>
+
+<details>
+<summary><b>Special mechanics</b></summary>
+
 
 ### Physical dice and hand throws
 
@@ -116,7 +130,11 @@ If the player can no longer afford the extras (after raising the bet or losing m
 - The bet is shown as chip stacks in front of the tray, biggest chips first: $10,000 black, $2,500 green, $1,000 blue, $500 red, $100 white.
 - Up to 10 chips per stack and 8 stacks across.
 
-## Two-player mode
+</details>
+
+<details>
+<summary><b>Two-player mode</b></summary>
+
 
 Two players share one table and take turns; each has their own $10,000 wallet. Everything else (options, target, dice) is shared, and the active player's wallet pays and collects.
 
@@ -127,7 +145,11 @@ Two players share one table and take turns; each has their own $10,000 wallet. E
 - The active player's wallet is highlighted, buttons are prefixed with their name, and history entries are tagged P1 / P2.
 - Passing is not allowed while the table is flipped.
 
-## UI and controls
+</details>
+
+<details>
+<summary><b>UI and controls</b></summary>
+
 
 The screen has a settings panel in four numbered groups, the 3D table below it, and two action buttons. Settings lock once the dice are thrown.
 
@@ -153,7 +175,11 @@ Feedback:
 - Roll history (collapsible menu) keeps the last 10 rounds as "total/target ±net", green for wins and red for losses.
 - Dice colours by type: d4 green, d6 white, d8 blue, d10 purple, d20 orange; penalty dice red, bonus dice gold.
 
-## Debug settings and tuning
+</details>
+
+<details>
+<summary><b>Debug settings and tuning</b></summary>
+
 
 A collapsible Debug menu exposes the balance values. Every change is saved in the browser and "Reset debug settings" restores the defaults.
 
@@ -181,3 +207,5 @@ Fixed in code (no debug control):
 | Max bonus dice per round | 6 |
 | Roll settle timeout | 8 s |
 | Table flip duration | 0.7 s |
+
+</details>
