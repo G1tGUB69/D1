@@ -154,6 +154,18 @@
       overflow: hidden;
     }
 
+    .table .flip {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 1;
+      width: auto;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.45);
+    }
+
     .table canvas {
       display: block;
       width: 100%;
@@ -311,15 +323,13 @@
     }
 
     .history {
-      margin-top: 20px;
-      padding-top: 16px;
-      border-top: 1px solid var(--border);
+      margin-top: 10px;
       display: flex;
       flex-wrap: wrap;
-      justify-content: center;
       gap: 6px;
-      min-height: 2.5em;
     }
+
+    .history:empty::before { content: 'No rounds yet'; }
 
     .history span {
       padding: 4px 10px;
@@ -328,6 +338,8 @@
       border-radius: 999px;
     }
 
+    /* Side menus: roll history on the left, debug on the right */
+    .history-menu,
     .debug {
       position: fixed;
       top: 16px;
@@ -345,6 +357,12 @@
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
     }
 
+    .history-menu {
+      right: auto;
+      left: 16px;
+    }
+
+    .history-menu summary,
     .debug summary { cursor: pointer; }
 
     .debug-group > summary {
@@ -480,12 +498,10 @@
     </section>
     </div>
     </div>
-
-    <div class="history" id="history"></div>
     </div>
 
     <div class="bottom">
-      <div class="table" id="table"></div>
+      <div class="table" id="table"><button id="flip" class="flip">Flip the table</button></div>
       <div class="buttons">
         <button id="primary">Roll</button>
         <button id="secondary" class="secondary" hidden>Take the loss</button>
@@ -493,6 +509,11 @@
       <div class="hint" id="hint"></div>
     </div>
   </main>
+
+  <details class="history-menu">
+    <summary>Roll history</summary>
+    <div class="history" id="history"></div>
+  </details>
 
   <details class="debug">
     <summary>Debug</summary>
@@ -717,13 +738,21 @@
     const RIM_HEIGHT = 0.45;
     const RIM_WIDTH = 0.3;
 
+    // The tray hangs off a pivot on its back edge, so it can be flipped over backwards
+    const trayPivot = new THREE.Group();
+    trayPivot.position.z = -ARENA_D - RIM_WIDTH;
+    scene.add(trayPivot);
+    const tray = new THREE.Group();
+    tray.position.z = ARENA_D + RIM_WIDTH;
+    trayPivot.add(tray);
+
     const felt = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA_W * 2, ARENA_D * 2),
       new THREE.MeshStandardMaterial({ color: 0x1f6b47, roughness: 1 })
     );
     felt.rotation.x = -Math.PI / 2;
     felt.receiveShadow = true;
-    scene.add(felt);
+    tray.add(felt);
 
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x7a4b2a, roughness: 0.6 });
     function addRim(width, depth, x, z) {
@@ -731,7 +760,7 @@
       rim.position.set(x, RIM_HEIGHT / 2, z);
       rim.castShadow = true;
       rim.receiveShadow = true;
-      scene.add(rim);
+      tray.add(rim);
     }
     const outerW = ARENA_W * 2 + RIM_WIDTH * 2;
     addRim(outerW, RIM_WIDTH, 0, -ARENA_D - RIM_WIDTH / 2);           // back
@@ -1094,13 +1123,17 @@
       body.position.set(...position);
       body.quaternion.setFromEuler(...euler);
       world.addBody(body);
+      return body;
     }
 
     addPlane([0, 0, 0], [-Math.PI / 2, 0, 0]);          // floor
-    addPlane([-ARENA_W, 0, 0], [0, Math.PI / 2, 0]);    // left wall
-    addPlane([ARENA_W, 0, 0], [0, -Math.PI / 2, 0]);    // right wall
-    addPlane([0, 0, -ARENA_D], [0, 0, 0]);              // back wall
-    addPlane([0, 0, ARENA_D], [0, Math.PI, 0]);         // front wall
+    // The tray's walls, taken away while the table is flipped
+    const walls = [
+      addPlane([-ARENA_W, 0, 0], [0, Math.PI / 2, 0]),  // left
+      addPlane([ARENA_W, 0, 0], [0, -Math.PI / 2, 0]),  // right
+      addPlane([0, 0, -ARENA_D], [0, 0, 0]),            // back
+      addPlane([0, 0, ARENA_D], [0, Math.PI, 0])        // front
+    ];
 
     // --- Dice ---
 
@@ -1511,7 +1544,7 @@
     }
 
     function render() {
-      const busy = game.phase === 'rolling' || !!drag;
+      const busy = game.phase === 'rolling' || !!drag || flipped;
       const betting = game.phase === 'bet';
       const locked = !betting || busy;
 
@@ -1574,8 +1607,14 @@
 
       secondaryBtn.hidden = game.phase !== 'decide';
       secondaryBtn.disabled = busy;
+      flipBtn.hidden = flipped;
+      flipBtn.disabled = game.phase === 'rolling' || !!drag || !!trayTween;
 
-      if (game.phase === 'over') {
+      if (flipped) {
+        primaryBtn.textContent = trayTween && trayTween.to === 0 ? 'Putting it back…' : 'Put the table back';
+        primaryBtn.disabled = !!trayTween;
+        hintEl.textContent = 'Dice everywhere. Feel better?';
+      } else if (game.phase === 'over') {
         primaryBtn.textContent = 'New game';
         primaryBtn.disabled = false;
         hintEl.textContent = `Your best so far: ${usd(best)}`;
@@ -1631,7 +1670,7 @@
     }
 
     canvas.addEventListener('pointerdown', e => {
-      if (game.phase === 'rolling') return;
+      if (game.phase === 'rolling' || flipped) return;
       const die = dieUnderPointer(e);
       const target = die && dragTarget(e);
       if (!target) return;
@@ -1721,6 +1760,93 @@
         (LIFT - body.position.y) * 15,
         (drag.target.z - body.position.z) * 15
       );
+    }
+
+    // --- Flipping the table ---
+
+    const flipBtn = $('flip');
+    const FLIP_TIME = 0.7;   // seconds for the tray to go over, or come back
+    let flipped = false;
+    let trayTween = null;    // { from, to, start, done }
+    let flyingChips = [];    // { mesh, velocity, spin } for the bet chips knocked off the table
+
+    function tweenTray(to, done) {
+      trayTween = { from: trayPivot.rotation.x, to, start: performance.now(), done };
+    }
+
+    // Fast start, gentle finish, like a shove
+    function updateTray(now) {
+      const t = Math.min(1, (now - trayTween.start) / 1000 / FLIP_TIME);
+      const eased = 1 - (1 - t) ** 3;
+      trayPivot.rotation.x = trayTween.from + (trayTween.to - trayTween.from) * eased;
+      if (t < 1) return;
+      const { done } = trayTween;
+      trayTween = null;
+      if (done) done();
+      render();
+    }
+
+    // Chips aren't in the physics world: simple ballistic flight, a couple of bounces, then lie flat
+    function updateFlyingChips(dt) {
+      const restY = CHIP_HEIGHT / 2;
+      flyingChips.forEach(c => {
+        if (!c.velocity.lengthSq() && c.mesh.position.y <= restY) return;
+        c.velocity.y -= 30 * dt;
+        c.mesh.position.addScaledVector(c.velocity, dt);
+        c.mesh.rotation.x += c.spin.x * dt;
+        c.mesh.rotation.y += c.spin.y * dt;
+        c.mesh.rotation.z += c.spin.z * dt;
+        if (c.mesh.position.y > restY) return;
+        c.mesh.position.y = restY;
+        c.velocity.set(c.velocity.x * 0.5, -c.velocity.y * 0.3, c.velocity.z * 0.5);
+        c.spin.multiplyScalar(0.4);
+        if (c.velocity.y < 1) {
+          c.velocity.set(0, 0, 0);
+          c.mesh.rotation.x = Math.round(c.mesh.rotation.x / Math.PI) * Math.PI;
+          c.mesh.rotation.z = Math.round(c.mesh.rotation.z / Math.PI) * Math.PI;
+        }
+      });
+    }
+
+    function flipTable() {
+      if (flipped || trayTween || game.phase === 'rolling' || drag) return;
+
+      // Flipping instead of rerolling gives up the round
+      const gaveUp = game.phase === 'decide';
+      if (gaveUp) resolve(game.result.total, game.result.sum);
+
+      flipped = true;
+      walls.forEach(w => world.removeBody(w));
+      dice.forEach(({ body }) => {
+        body.wakeUp();
+        body.velocity.set(rand(-4, 4), rand(9, 13), rand(-7, -2));
+        body.angularVelocity.set(rand(-25, 25), rand(-25, 25), rand(-25, 25));
+      });
+      flyingChips = chipGroup.children.map(mesh => ({
+        mesh,
+        velocity: new THREE.Vector3(rand(-3, 1), rand(4, 8), rand(-4, 1)),
+        spin: new THREE.Vector3(rand(-12, 12), rand(-12, 12), rand(-12, 12))
+      }));
+      tweenTray(-Math.PI);
+
+      breakdownEl.textContent = `You flipped the table!${gaveUp ? ' Round lost.' : ''} Put it back to keep playing.`;
+      render();
+    }
+
+    function restoreTable() {
+      if (!flipped || trayTween) return;
+      tweenTray(0, () => {
+        flipped = false;
+        flyingChips = [];
+        walls.forEach(w => world.addBody(w));
+        layoutDice();
+        chipsShown = null;
+        showChips(game.bet);
+        breakdownEl.textContent = game.phase === 'over'
+          ? "The table's back, but you're out of money."
+          : `The table's back. Target: ${game.target}. Place your bet.`;
+      });
+      render();
     }
 
     // --- Controls ---
@@ -2039,8 +2165,11 @@
       render();
     });
 
+    flipBtn.addEventListener('click', flipTable);
+
     primaryBtn.addEventListener('click', () => {
-      if (game.phase === 'over') newGame();
+      if (flipped) restoreTable();
+      else if (game.phase === 'over') newGame();
       else if (game.phase === 'bet') roll();
       else if (game.phase === 'decide') reroll(dice.filter(d => d.selected));
     });
@@ -2075,6 +2204,8 @@
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
       if (drag) updateDrag();
+      if (trayTween) updateTray(now);
+      if (flyingChips.length) updateFlyingChips(dt);
       world.step(1 / 60, dt, 5);
       syncMeshes();
       if (game.phase === 'rolling') checkSettled(now);
