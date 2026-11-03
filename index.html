@@ -123,6 +123,8 @@
       border-radius: 10px;
     }
 
+    .stats div.turn { box-shadow: inset 0 0 0 2px var(--accent); }
+
     .label {
       display: block;
       font-size: 0.7rem;
@@ -412,17 +414,22 @@
   <main class="card">
     <h1>Beat the Target</h1>
     <div class="scroll">
-    <p class="rules">Pick a difficulty, bet, choose your dice and how many, then roll them. Reach the target or higher to win. Buy up to 3 rerolls and exploding dice, or add penalty dice for a bigger payout.</p>
+    <p class="rules">Pick a difficulty, bet, choose your dice and how many, then roll them. Reach the target or higher to win. Buy up to 3 rerolls and exploding dice, or add penalty dice for a bigger payout. Play solo, or take turns with a second player: the first to go broke loses.</p>
 
     <div class="columns">
     <div class="column">
     <section class="group">
       <h2 class="group-title">1. Money &amp; Best</h2>
       <div class="stats">
-        <div><span class="label">Money</span><span class="value" id="money">$10,000</span></div>
+        <div id="player0"><span class="label" id="moneyLabel">Money</span><span class="value" id="money">$10,000</span></div>
+        <div id="player1" hidden><span class="label">Player 2</span><span class="value" id="money2">$10,000</span></div>
         <div><span class="label">Best</span><span class="value" id="best">$10,000</span></div>
       </div>
       <div class="options">
+        <div class="option">
+          <span>Players <small>Take turns at the table · switching starts a new game</small></span>
+          <div class="chips" id="playerCounts"></div>
+        </div>
         <div class="option">
           <span>Bet</span>
           <div class="slider">
@@ -684,6 +691,10 @@
     const $ = id => document.getElementById(id);
     const tableEl = $('table');
     const moneyEl = $('money');
+    const money2El = $('money2');
+    const moneyLabelEl = $('moneyLabel');
+    const playerEls = [$('player0'), $('player1')];
+    const playerCountsEl = $('playerCounts');
     const targetEl = $('target');
     const rerollsEl = $('rerolls');
     const bestEl = $('best');
@@ -1385,8 +1396,18 @@
 
     // --- Game ---
 
+    // Each player has their own wallet; everything else at the table is shared
+    const players = [
+      { name: 'Player 1', money: START_MONEY },
+      { name: 'Player 2', money: START_MONEY }
+    ];
+    let playerCount = 1;
+    let turn = 0;          // index of the player at the table
+    const twoPlayers = () => playerCount === 2;
+    const otherPlayer = () => players[1 - turn];
+    const turnText = () => (twoPlayers() ? `${players[turn].name}'s turn. ` : '');
+
     const game = {
-      money: START_MONEY,
       bet: 1000,
       dieType: 'd6',
       penaltyType: 'd6',
@@ -1404,6 +1425,11 @@
       rolledExploding: false,
       result: null         // { total, sum } while deciding
     };
+    // game.money always reads and writes the wallet of the player whose turn it is
+    Object.defineProperty(game, 'money', {
+      get: () => players[turn].money,
+      set: value => { players[turn].money = value; }
+    });
 
     let best = START_MONEY;
     try { best = Math.max(START_MONEY, Number(localStorage.getItem('beat-the-target-best')) || 0); } catch {}
@@ -1593,7 +1619,8 @@
       if (win) game.money += game.payout;
       const net = (win ? game.payout : 0) - game.spent;
 
-      history.unshift({ text: `${total}/${game.target} ${dollars(net)}`, win });
+      const who = twoPlayers() ? `P${turn + 1} ` : '';
+      history.unshift({ text: `${who}${total}/${game.target} ${dollars(net)}`, win });
       if (history.length > 10) history.pop();
       historyEl.innerHTML = history.map(h => `<span class="${h.win ? 'win' : 'lose'}">${h.text}</span>`).join('');
 
@@ -1602,7 +1629,10 @@
         try { localStorage.setItem('beat-the-target-best', best); } catch {}
       }
 
-      newRound(`${sum} vs ${game.target}: ${win ? `won ${usd(game.payout)}` : 'lost'} (${dollars(net)}).`);
+      const message = `${who}${sum} vs ${game.target}: ${win ? `won ${usd(game.payout)}` : 'lost'} (${dollars(net)}).`;
+      // Pass the table on, unless this player is broke and the game is about to end
+      if (twoPlayers() && game.money >= betLimits.min) turn = 1 - turn;
+      newRound(message);
     }
 
     function newRound(message) {
@@ -1615,19 +1645,22 @@
 
       if (game.money < betLimits.min) {
         game.phase = 'over';
-        breakdownEl.textContent = `${message} You're out of money.`;
+        breakdownEl.textContent = twoPlayers()
+          ? `${message} ${players[turn].name} is out of money. ${otherPlayer().name} wins!`
+          : `${message} You're out of money.`;
       } else {
         game.phase = 'bet';
         clampBet();
         fitBudget();
         fitTray();   // picks up a tray size changed in the debug menu mid-round
-        breakdownEl.textContent = `${message} New target: ${game.target}. Place your bet.`.trim();
+        breakdownEl.textContent = `${message} ${turnText()}New target: ${game.target}. Place your bet.`.trim();
       }
       render();
     }
 
     function newGame() {
-      game.money = START_MONEY;
+      players.forEach(p => { p.money = START_MONEY; });
+      turn = 0;
       history.length = 0;
       historyEl.innerHTML = '';
       totalEl.textContent = '–';
@@ -1639,7 +1672,15 @@
       const betting = game.phase === 'bet';
       const locked = !betting || busy;
 
-      moneyEl.textContent = usd(game.money);
+      moneyEl.textContent = usd(players[0].money);
+      money2El.textContent = usd(players[1].money);
+      moneyLabelEl.textContent = twoPlayers() ? players[0].name : 'Money';
+      playerEls[1].hidden = !twoPlayers();
+      playerEls.forEach((el, i) => el.classList.toggle('turn', twoPlayers() && i === turn));
+      playerCountsEl.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('active', Number(b.dataset.players) === playerCount);
+        b.disabled = busy || game.phase === 'decide';
+      });
       targetEl.textContent = game.target;
       rerollsEl.textContent = game.rerolls - game.rerollsUsed;
       bestEl.textContent = usd(best);
@@ -1708,11 +1749,11 @@
       } else if (game.phase === 'over') {
         primaryBtn.textContent = 'New game';
         primaryBtn.disabled = false;
-        hintEl.textContent = `Your best so far: ${usd(best)}`;
+        hintEl.textContent = twoPlayers() ? `${otherPlayer().name} wins!` : `Your best so far: ${usd(best)}`;
       } else if (betting) {
-        primaryBtn.textContent = `Roll · ${usd(upfrontCost())}`;
+        primaryBtn.textContent = `${twoPlayers() ? `${players[turn].name}: ` : ''}Roll · ${usd(upfrontCost())}`;
         primaryBtn.disabled = busy || upfrontCost() > game.money;
-        hintEl.textContent = 'Space to roll · or flick a die to throw it yourself';
+        hintEl.textContent = `${turnText()}Space to roll · or flick a die to throw it yourself`;
       } else if (game.phase === 'rolling') {
         primaryBtn.textContent = 'Rolling…';
         primaryBtn.disabled = true;
@@ -1934,8 +1975,8 @@
         chipsShown = null;
         showChips(game.bet);
         breakdownEl.textContent = game.phase === 'over'
-          ? "The table's back, but you're out of money."
-          : `The table's back. Target: ${game.target}. Place your bet.`;
+          ? (twoPlayers() ? `The table's back. ${otherPlayer().name} wins!` : "The table's back, but you're out of money.")
+          : `The table's back. ${turnText()}Target: ${game.target}. Place your bet.`;
       });
       render();
     }
@@ -1968,6 +2009,18 @@
       b.dataset.difficulty = key;
       b.addEventListener('click', () => setDifficulty(key));
       difficultiesEl.appendChild(b);
+    });
+
+    [1, 2].forEach(n => {
+      const b = document.createElement('button');
+      b.textContent = n === 1 ? '1 player' : '2 players';
+      b.dataset.players = n;
+      b.addEventListener('click', () => {
+        if (n === playerCount) return;
+        playerCount = n;
+        newGame();
+      });
+      playerCountsEl.appendChild(b);
     });
 
     // --- Debug ---
